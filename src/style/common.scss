@@ -1,0 +1,148 @@
+@import './mixin';
+/* 重写滚动条样式 */  
+::-webkit-scrollbar  
+{  
+    width: .5rem;  
+    background-color: #F5F5F5;  
+}  
+::-webkit-scrollbar-track  
+{  
+    border-radius: 10px;  
+    background-color: #F5F5F5;  
+}  
+::-webkit-scrollbar-thumb  
+{  
+    border-radius: 10px;  
+    background-color: #ccc; 
+}
+/* 标签样式重写 */
+* {
+	box-sizing: border-box;
+}
+input[type="button"], input[type="submit"], input[type="search"], input[type="reset"] {
+    -webkit-appearance: none;
+}
+textarea { -webkit-appearance: none;}   
+html,body{
+    height: 100%;
+    width: 100%;
+    background-color: $background;
+}
+@for $number from 1 through 6 {
+    h#{$number} {
+        font-size: $h1fs - ($hfsd * $number);
+        font-weight: bold;
+    }
+}
+p {
+    @include fsc(14px,#888);
+    padding: .5rem;
+}
+/* 常用样式 */  
+[v-cloak], [hidden] {
+	display: none !important;
+}
+.invisible {
+	visibility: hidden !important;
+}
+.ellipsis{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.text-center {
+    text-align: center;
+}
+.text-sm {
+    font-size: .8rem;
+}
+.text-md {
+    font-size: 1rem;
+}
+.text-lg {
+    font-size: 1.4rem;
+}
+.text-sg {
+    font-size: 2rem;
+}
+.disabled {
+    color: #ccc;
+}
+.clear{
+    zoom:1;
+}
+.clear:after{
+    content: '';
+    display: block;
+    clear: both;
+}
+.fill {
+    width: 100%;
+    height: 100%;
+}
+.content__center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    &.middle {
+        flex-direction: column;
+    }
+}
+.content__start {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+.content__end {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+.content__fill>*:only-child,
+.content__fill.force>* {
+    width: 100%;
+}
+.content__inline>* {
+    display: inline-block;
+}
+/* 常用结构样式 */
+.content-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    .content-row--label {
+        display: inline-block;
+        padding: 0 .5rem 0 1rem;
+    }
+    .content-row--content {
+        display: inline-block;
+        flex: 1;
+    }
+}
+.content-row__verital {
+    @extend .content-row;
+    flex-direction: column;
+
+    .content-row--label {
+        width: 100%;
+        display: block;
+        padding: 1rem 0 .5rem 0;
+    }
+    .content-row--content {
+        width: 100%;
+        display: block;
+        flex: 1;
+    }
+}
+/* 动画样式 */
+@keyframes backOpacity{
+   0%   { opacity: 1 }
+   25%  { opacity: .5 }
+   50%  { opacity: 1 }
+   75%  { opacity: .5 }
+   100% { opacity: 1 }
+}
+.animation_opactiy{
+    animation: backOpacity 2s ease-in-out infinite;
+}
