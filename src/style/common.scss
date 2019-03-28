@@ -37,6 +37,7 @@ html,body{
 p {
     @include fsc(14px,#888);
     padding: .5rem;
+    line-height: 18px;
 }
 /* 常用样式 */  
 [v-cloak], [hidden] {
@@ -45,13 +46,24 @@ p {
 .invisible {
 	visibility: hidden !important;
 }
-.ellipsis{
+.word-ellipsis {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.word-break {
+    word-wrap: break-word;
+    word-break: break-all;
+    overflow: hidden;
+}
+.text-block {
+    display: block;
+}
 .text-center {
     text-align: center;
+}
+.text-right {
+    text-align: right;
 }
 .text-sm {
     font-size: .8rem;
@@ -60,13 +72,36 @@ p {
     font-size: 1rem;
 }
 .text-lg {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
 }
-.text-sg {
+.text-xl {
     font-size: 2rem;
+}
+.text--success {
+    color: #67c23a;
+}
+.text--fail {
+    color: #f56c6c;
+}
+.text--warn {
+    color: #e6a23c;
+}
+.text--info {
+    color: #606266;
 }
 .disabled {
     color: #ccc;
+}
+.link {
+    color: $theme;
+    cursor: pointer;
+    &:hover {
+        text-decoration: underline;
+    }
+}
+.scrollable {
+    overflow: auto;
+    position: relative;
 }
 .clear{
     zoom:1;
@@ -98,6 +133,11 @@ p {
     align-items: center;
     justify-content: flex-end;
 }
+.content__side {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
 .content__fill>*:only-child,
 .content__fill.force>* {
     width: 100%;
@@ -109,31 +149,125 @@ p {
 .content-row {
     width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    .content-row--label {
+    align-items: baseline;
+    .content-row__label {
         display: inline-block;
         padding: 0 .5rem 0 1rem;
     }
-    .content-row--content {
+    .content-row__content {
         display: inline-block;
         flex: 1;
     }
 }
-.content-row__verital {
+.content-row--vertical {
     @extend .content-row;
     flex-direction: column;
-
-    .content-row--label {
+    &>.content-row__label {
         width: 100%;
         display: block;
         padding: 1rem 0 .5rem 0;
     }
-    .content-row--content {
+    &>.content-row__content {
         width: 100%;
         display: block;
         flex: 1;
     }
+}
+/* 图文结构 */
+.media-block {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    position: relative;
+    padding-right: .5rem;
+    padding-top: .5rem;
+    .media-block__icon {
+        min-width: 20%;
+        display: flex;
+        justify-content: center;
+        img,i,.icon {
+            display: inline-block;
+        }
+    }
+    .media-block__content {
+        flex: 1;
+        padding: 0 0 .5rem 1rem;
+        overflow: hidden;
+        .media-block__content-title {
+            @extend .word-break;
+            font-size: 1.4rem;
+            color: black;
+            font-weight: bold;
+            line-height: 2rem;
+        }
+        .media-block__content-subtitle {
+            @extend .word-break;
+            margin-top: .5rem;
+            font-size: 1rem;
+            color: #999;
+            line-height: 1.4rem;
+        }
+        .media-block__content-extra {
+            margin-top: .5rem;
+        }
+    }
+    .media-block__bundle {
+        max-width: 33.333%;
+        margin-left: .5rem;
+    }
+}
+/* 表单结构 */
+.form-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    .form-block__item {
+        min-height: 3rem;
+        display: flex;
+        align-items: center;
+        padding-top: 1rem;
+        .form-block__item-label {
+            width: 12rem;
+            font-size: 1.2rem;
+            line-height: 1.4rem;
+            color: color;
+            font-weight: bold;
+        }
+        .form-block__item-content {
+            flex: 1;
+        }
+    }
+}
+/* 列表结构 */
+.list-block {
+    overflow-x: hidden;
+    overflow-y: auto;
+    .list-block__item {
+        height: 2rem;
+        padding: .5rem;
+        cursor: pointer;
+        position: relative;
+        &::after {
+            width: 100%;
+            height: 1px;
+            background: $border;
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: .5rem;
+        }
+        &:hover {
+            background: rgba($border, .3);
+        }
+        &.list-block__item--selected {
+            background: rgba($border, .5);
+        }
+    }
+}
+/* 加载中容器 */
+.loading {
+    position: relative;
 }
 /* 动画样式 */
 @keyframes backOpacity{

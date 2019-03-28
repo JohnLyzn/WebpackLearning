@@ -30,6 +30,8 @@
   	}
 </script>
 <style lang="scss">
+	@import 'style/mixin';
+
 	.router-fade-enter-active, .router-fade-leave-active {
 	  	transition: opacity .3s;
 	}
@@ -37,13 +39,22 @@
 	  	opacity: 0;
 	}
 	.main-container {
-		// padding-top: 50px;
-		// .main-body {
-		// 	width: 100vw;
-		// 	height: 100vh;
-		// 	position: absolute;
-		// 	top: 0;
-		// 	padding-top: 55px;
-		// }
+		.common-header {
+			background: $theme;
+			height: 45px;
+			.mint-header-title {
+				font-size: 1.1rem;
+				font-weight: bold;
+			}
+		}
+		.main-body {
+			width: 100vw;
+			height: 100vh;
+			position: absolute;
+			top: 0;
+		}
+		.common-header~.main-body {
+			padding-top: 45px;
+		}
 	}
 </style>

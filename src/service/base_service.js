@@ -14,18 +14,159 @@ const TASK_STATUS__FAIL = 2;
  */
 export default class BaseService {
 
+	constructor() {
+		// 定义缓存对象的组织关系
+		this.CACHE_RULES = {
+			SINGLE: {
+				identifyKeys: ['objType','objId'],
+				get: (placeholders) => {
+					return {
+						objs: [this.getObjInCacheMap(placeholders['objId'], placeholders['objType'] || Model)],
+						singleResult: true,
+					};
+				},
+				set: (placeholders, cachable) => {
+					let rawObj = cachable.objs[0];
+					if(! rawObj) {
+						return {
+							objs: [],
+							singleResult: true,
+						};
+					}
+					let obj = new (placeholders['objType'] || Model)(rawObj, false, placeholders);
+					if(! Utils.isString(obj.id)) {
+						throw new Error('请保证模型的id为字符串类型');
+					}
+					this.putObjInCacheMap(obj, placeholders['objType'] || Model);
+					return {
+						objs: [obj],
+						singleResult: true,
+					};
+				}
+			},
+			MULTI: {
+				identifyKeys: ['objType', 'objIds'],
+				get: (placeholders) => {
+					return {
+						objs: this.getObjsInCacheMap(placeholders['objIds'], placeholders['objType'] || Model),
+						singleResult: false,
+					};
+				},
+				set: (placeholders, cachable) => {
+					let objs = [];
+					for(let rawObj of cachable.objs) {
+						let obj = new (placeholders['objType'] || Model)(rawObj, false, placeholders);
+						if(! Utils.isString(obj.id)) {
+							throw new Error('请保证模型的id为字符串类型');
+						}
+						this.putObjInCacheMap(obj, placeholders['objType'] || Model);
+						objs.push(obj);
+					}
+					return {
+						objs: objs,
+						singleResult: false,
+					};
+				}
+			},
+			PARENT_CHILD: {
+				identifyKeys: ['parentObjType', 'subObjType', 'parentObjId','subObjIdCacheKey'],
+				get: (placeholders) => {
+					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
+					if(! parentObj) {
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType']);
+						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
+					}
+					return {
+						objs: [this.getObjInCacheMap(parentObj[placeholders['subObjIdCacheKey']], placeholders['subObjType'])],
+						parentObj: parentObj,
+						singleResult: true,
+					};
+				},
+				set: (placeholders, cachable) => {
+					let result = this.CACHE_RULES.SINGLE.set({
+						objType: placeholders['subObjType'],
+					}, cachable);
+					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
+					if(! parentObj) {
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType']);
+					}
+					parentObj[placeholders['subObjIdCacheKey']] = result.objs[0].id;
+					this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
+					return {
+						objs: result.objs,
+						parentObj: parentObj,
+						singleResult: true,
+					};
+				}
+			},
+			PARENT_CHILDREN: {
+				identifyKeys: ['parentObjType', 'subObjType', 'parentObjId','subObjIdsCacheKey'],
+				get: (placeholders) => {
+					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
+					if(! parentObj) {
+						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType']);
+						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
+					}
+					return {
+						objs: this.getObjsInCacheMap(parentObj[placeholders['subObjIdsCacheKey']], placeholders['subObjType']),
+						parentObj: parentObj,
+						singleResult: false,
+					};
+				},
+				set: (placeholders, cachable) => {
+					let result = this.CACHE_RULES.MULTI.set({
+						objType: placeholders['subObjType'],
+					}, cachable);
+					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
+					if(! parentObj) {
+						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType']);
+					}
+					let cachedSubObjIds = parentObj[placeholders['subObjIdsCacheKey']];
+					if(cachedSubObjIds) {
+						for(let newObjId of Utils.asListByKey(result.objs, 'id')) {
+							if(cachedSubObjIds.indexOf(newObjId) == -1) {
+								cachedSubObjIds.push(newObjId);
+							}
+						}
+					} else {
+						cachedSubObjIds = Utils.asListByKey(result.objs, 'id');
+					}
+					parentObj[placeholders['subObjIdsCacheKey']] = cachedSubObjIds;
+					this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
+					return {
+						objs: result.objs,
+						parentObj: parentObj,
+						singleResult: false,
+					};
+				}
+			},
+			NONE: {
+				get: (placeholders) => {
+					return {
+						objs: this.getAllObjsInCacheMap(placeholders['objType'] || Model),
+					};
+				},
+				set: (placeholders, cachable) => {
+					return this.CACHE_RULES.MULTI.set(placeholders, cachable);
+				},
+			},
+		};
+	}
+
 	/**
 	 * 模版方法: 创建对象, 并加入缓存
 	 */
 	async createTemplate(params, callbacks, placeholders, task) {
+		params = params || {};
 		callbacks = callbacks || {};
+		task = params.task || task;
 		placeholders._ajaxMethod = placeholders['ajaxMethod'] || 'POST';
 		placeholders._ajaxParamsHandleFn = null;
 		placeholders._ajaxSuccessFn = async (json) => {
 			if(_getResultFromJson(json, placeholders['resultKey']) === false) {
 				return false;
 			}
-			const detailsHandleResult = await _handleDetailsFetch(params, callbacks, placeholders, json);
+			const detailsHandleResult = await this._handleDetailsFetch(params, callbacks, placeholders, json);
 			if(! detailsHandleResult) {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
@@ -42,9 +183,11 @@ export default class BaseService {
 	 * 模版方法: 删除对象, 同时更新缓存
 	 */
 	async deleteTemplate(params, callbacks, placeholders, task) {
+		params = params || {};
 		callbacks = callbacks || {};
+		task = params.task || task;
 		if(params.isOnlyDeleteCache) {
-			let handleDeleteResult = _handleDeleteCache(params, callbacks, placeholders);
+			let handleDeleteResult = this._handleDeleteCache(params, callbacks, placeholders);
 			if(! handleDeleteResult) {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, null);
@@ -59,7 +202,7 @@ export default class BaseService {
 			if(_getResultFromJson(json, placeholders['resultKey']) === false) {
 				return false;
 			}
-			let handleDeleteResult = _handleDeleteCache(params, callbacks, placeholders);
+			let handleDeleteResult = this._handleDeleteCache(params, callbacks, placeholders);
 			if(! handleDeleteResult) {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
@@ -76,14 +219,16 @@ export default class BaseService {
 	 * 模版方法: 更新对象信息, 同时更新缓存
 	 */
 	async updateTemplate(params, callbacks, placeholders, task) {
+		params = params || {};
 		callbacks = callbacks || {};
+		task = params.task || task;
 		placeholders._ajaxMethod = placeholders['ajaxMethod'] || 'POST';
 		placeholders._ajaxParamsHandleFn = null;
 		placeholders._ajaxSuccessFn = async (json) => {
 			if(_getResultFromJson(json, placeholders['resultKey'])  === false) {
 				return false;
 			}
-			const detailsHandleResult = await _handleDetailsFetch(params, callbacks, placeholders, json);
+			const detailsHandleResult = await this._handleDetailsFetch(params, callbacks, placeholders, json);
 			if(! detailsHandleResult) {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
@@ -100,87 +245,50 @@ export default class BaseService {
 	 * 模版方法: 查询对象, 如果缓存中包含该信息则返回缓存
 	 */
 	async queryTemplate(params, callbacks, placeholders, task) {
+		params = params || {};
 		callbacks = callbacks || {};
-		let objType = placeholders['objType'] || Model;
-		let objId = placeholders['objId'];
-		let objIds = placeholders['objIds'];
-		
-		let parentObjType = placeholders['parentObjType'];
-		let parentObjId = placeholders['parentObjId'];
-		let subObjIdCacheKey = placeholders['subObjIdCacheKey'];
-		let subObjIdsCacheKey = placeholders['subObjIdsCacheKey'];
-		
-		let subObjType = placeholders['subObjType'];
-		
+		task = params.task || task;
+		// 缓存搜索内容, 如果缓存找不到会进行远程请求
 		let cacheSearches = placeholders['cacheSearches'] || params.cacheSearches;
-		
-		let obj = null, objs = null, parentObj = null;
-		// 如果外层定义没有确定返回结果类型, 则由参数决定
+		// 如果外层定义没有确定返回结果数目, 则由参数决定
 		let singleResult = params['singleResult'] || placeholders['singleResult'];
-		if(singleResult === undefined) {
-			if(Utils.hasKeys(placeholders, ['objId', 'subObjIdCacheKey'])) {
-				singleResult = true;
-			} else if(Utils.hasKeys(placeholders, ['objIds', 'subObjIdsCacheKey'])) { 
-				singleResult = false;
+		// 允许查找不到结果进行sucess的回调
+		let canNotFound = params['canNotFound'] || placeholders['canNotFound'];
+		// 处理成功的回调
+		const success4Inner = (cacheable) => {
+			if(singleResult === undefined) {
+				singleResult = cacheable.singleResult;
 			}
-		}
-		let canNotFound = placeholders['canNotFound'];
-
+			if(Utils.isFunc(callbacks.onSuccess)) {
+				let continueParams = callbacks.onSuccess(
+					singleResult ? cacheable.objs[0] : cacheable.objs,
+					cacheable.parentObj,
+					params);
+				if(continueParams) {
+					let continueFn = placeholders['continueFn'];
+					if(Utils.isFunc(continueFn)) {
+						continueFn(continueParams, callbacks, placeholders);
+					}
+				}
+			}
+			return singleResult ? cacheable.objs[0] : cacheable.objs;
+		};
+		// 默认不从缓存查找, 外部指定fromCache才从缓存中查找
 		if(params.fromCache) {
 			if(! params.searches) {
-				if(Utils.hasKeys(placeholders, ['objId'])) { /* 根据ID获取 */
-					obj = this.getObjInCacheMap(objId, objType);
-				} else if(Utils.hasKeys(placeholders, ['objIds'])) { /* 根据ID列表获取 */
-					objs = this.getObjsInCacheMap(objIds, objType);
-				} else if(Utils.hasKeys(placeholders, ['parentObjId','subObjIdCacheKey'])) { /* 根据父对象缓存的子对象ID获取 */
-					parentObj = this.getObjInCacheMap(parentObjId, parentObjType);
-					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, parentObjType);
-						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
+				let cacheable = this.handleCacheByRule('get', placeholders);
+				if(cacheSearches) {
+					// 非获取单个结果不允许进行缓存查询, 这样查出来的结果可能会有漏
+					if(! singleResult) {
+						throw new Error('非获取单个结果不允许进行缓存查询');
 					}
-					obj = this.getObjInCacheMap(parentObj[subObjIdCacheKey], subObjType);
-				} else if(Utils.hasKeys(placeholders, ['parentObjId','subObjIdsCacheKey'])) { /* 根据父对象缓存的子对象ID列表获取 */
-					parentObj = this.getObjInCacheMap(parentObjId, parentObjType);
-					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, parentObjType);
-						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
-					}
-					objs = this.getObjsInCacheMap(parentObj[subObjIdsCacheKey], subObjType);
-				} else { /* 其它条件 */
-					objs = this.getAllObjsInCacheMap(objType);
+					cacheable.objs = _search(cacheable.objs, cacheSearches, true);
 				}
-				if(objs) {
-					if(cacheSearches) {
-						// 非获取单个结果不允许进行缓存查询, 这样查出来的结果可能会有漏
-						if(! singleResult) {
-							throw new Error('非获取单个结果不允许进行缓存查询');
-						}
-						objs = _search(objs, cacheSearches, true);
-					}
-					if(params.pagination) {
-						objs = _setCachePagination(objs, params.pagination, callbacks);
-					}
+				if(params.pagination) {
+					cacheable.objs = _setCachePagination(cacheable.objs, params.pagination, callbacks);
 				}
-				if(objs && objs.length == 0) {
-					objs = null;
-				}
-				if(obj || objs) {
-					if(objs && singleResult) {
-						objs = objs[0];
-					}
-					if(obj && ! singleResult) {
-						obj = [obj];
-					}
-					if(Utils.isFunc(callbacks.onSuccess)) {
-						let continueParams = callbacks.onSuccess(obj || objs, parentObj, params);
-						if(continueParams) {
-							let continueFn = placeholders['continueFn'];
-							if(Utils.isFunc(continueFn)) {
-								continueFn(continueParams, callbacks, placeholders);
-							}
-						}
-					}
-					return obj || objs;
+				if(cacheable.objs.length) {
+					return success4Inner(cacheable);
 				}
 			}
 			if(params.preventAjax) {
@@ -191,10 +299,8 @@ export default class BaseService {
 		placeholders._ajaxParamsHandleFn = (ajaxParams) => {
 			let ajaxParamsIntercepter = placeholders['ajaxParamsIntercepter'];
 			if(Utils.isFunc(ajaxParamsIntercepter)) {
-				if(parentObjId && parentObjType) {
-					parentObj = this.getObjInCacheMap(parentObjId, parentObjType);
-				}
-				return ajaxParamsIntercepter(params, ajaxParams, parentObj);
+				let cacheable = this.handleCacheByRule('get', placeholders);
+				return ajaxParamsIntercepter(params, ajaxParams, cacheable.parentObj);
 			}
 		};
 		placeholders._ajaxSuccessFn = (json) => {
@@ -205,51 +311,7 @@ export default class BaseService {
 			if(! rows || (! canNotFound && singleResult && rows.length == 0)) {
 				return false;
 			}
-			let newObjType = objType || subObjType;
-			if(! newObjType) {
-				if(Utils.isFunc(callbacks.onSuccess)) {
-					callbacks.onSuccess(singleResult ? rows[0] : rows, json);
-				}
-				return singleResult ? rows[0] : rows;
-			}
-			let newObjs = [];
-			let newObjIds = [];
-			for(let i = 0; i < rows.length; i ++) {
-				let newObj = new newObjType(rows[i], false, placeholders);
-				if(! Utils.isString(newObj.id)) {
-					throw new Error('请保证模型的id为字符串类型');
-				}
-				this.putObjInCacheMap(newObj, newObjType);
-				newObjs.push(newObj);
-				newObjIds.push(newObj.id);
-			}
-			if(parentObjId) {
-				parentObj = this.getObjInCacheMap(parentObjId, parentObjType);
-				if(parentObj) {
-					if(subObjIdCacheKey) {
-						parentObj[subObjIdsCacheKey] = newObjIds[0];
-					} else if(subObjIdsCacheKey) {
-						let cachedSubObjIds = parentObj[subObjIdsCacheKey];
-						if(cachedSubObjIds) {
-							for(let i = 0; i < newObjIds.length; i ++) {
-								let newObjId = newObjIds[i];
-								if(cachedSubObjIds.indexOf(newObjId) == -1) {
-									cachedSubObjIds.push(newObjId);
-								}
-							}
-						} else {
-							cachedSubObjIds = newObjIds;
-						}
-						parentObj[subObjIdCacheKey || subObjIdsCacheKey] = cachedSubObjIds;
-					}
-					this.putObjInCacheMap(parentObj, parentObjType);
-				}
-			}
-			const queryResult = singleResult ? newObjs[0] : newObjs;
-			if(Utils.isFunc(callbacks.onSuccess)) {
-				callbacks.onSuccess(queryResult, parentObj);
-			}
-			return queryResult;
+			return success4Inner(this.handleCacheByRule('set', placeholders, {objs: rows}));
 		};
 		placeholders._ajaxErrorFn = null;
 		return _ajaxTemplate(params, callbacks, placeholders, task);
@@ -257,6 +319,8 @@ export default class BaseService {
 	
 	/**
 	 * 根据ID列表获取缓存中的对象
+	 * @param {*} objIds 
+	 * @param {*} objType 
 	 */
 	getObjsInCacheMap(objIds, objType) {
 		if(! objIds) {
@@ -275,6 +339,8 @@ export default class BaseService {
 	
 	/**
 	 * 根据ID获取缓存中的对象
+	 * @param {*} objId 
+	 * @param {*} objType 
 	 */
 	getObjInCacheMap(objId, objType) {
 		if(! objId) {
@@ -289,6 +355,9 @@ export default class BaseService {
 	
 	/**
 	 * 添加批量对象到缓存池中
+	 * @param {*} objs 
+	 * @param {*} objType 
+	 * @param {*} onlyMemery 
 	 */
 	putObjsInCacheMap(objs, objType, onlyMemery) {
 		for(let i = 0; i < objs.length; i ++) {
@@ -299,6 +368,9 @@ export default class BaseService {
 	
 	/**
 	 * 添加对象到缓存池中
+	 * @param {*} obj 
+	 * @param {*} objType 
+	 * @param {*} onlyMemery 
 	 */
 	putObjInCacheMap(obj, objType, onlyMemery) {
 		_putInCacheMap(_getCacheKey(objType), obj, onlyMemery);
@@ -306,6 +378,7 @@ export default class BaseService {
 	
 	/**
 	 * 获取在缓存池中某种类型的所有对象
+	 * @param {*} objType 
 	 */
 	getAllObjsInCacheMap(objType) {
 		let objs = _getInCacheMap(_getCacheKey(objType), null);
@@ -321,6 +394,8 @@ export default class BaseService {
 	
 	/**
 	 * 批量移除缓存池中的对象
+	 * @param {*} objIds 
+	 * @param {*} objType 
 	 */
 	removeObjsInCacheMap(objIds, objType) {
 		if(! objIds) {
@@ -334,12 +409,143 @@ export default class BaseService {
 	
 	/**
 	 * 在缓存池中移除对象
+	 * @param {*} objId 
+	 * @param {*} objType 
 	 */
 	removeObjInCacheMap(objId, objType) {
 		if(! objId) {
 			return;
 		}
 		_removeInCacheMap(_getCacheKey(objType), objId);
+	};
+
+	/**
+	 * 根据缓存规则处理缓存, 缓存规则见CACHE_RULES
+	 * @param {*} type 处理类型, 对应缓存规则中的回调方法
+	 * @param {*} placeholders 占位参数
+	 * @param {*} cacheable 表示可缓存的对象, 在创建缓存的时候需要用到
+	 */
+	handleCacheByRule(type, placeholders, cacheable) {
+		for(var key in this.CACHE_RULES) {
+			if(! this.CACHE_RULES.hasOwnProperty(key)) {
+				continue;
+			}
+			const rule = this.CACHE_RULES[key];
+			if(! Utils.hasKeys(placeholders, rule.identifyKeys)) {
+				continue;
+			}
+			return rule[type](placeholders, cacheable);
+		}
+		return this.CACHE_RULES.NONE[type](placeholders, cacheable);
+	};
+
+	/**
+	 * 处理删除后删除指定ID(单个或集合)的缓存对象
+	 */
+	_handleDeleteCache(params, callbacks, placeholders, json) {
+		let handleDeleteCachePlaceholdersFn = placeholders['handleDeleteCachePlaceholdersFn'];
+		let handleDeleteCachePlaceholders;
+		if(Utils.isFunc(handleDeleteCachePlaceholdersFn)) {
+			handleDeleteCachePlaceholders = handleDeleteCachePlaceholdersFn(json, params);
+			if(! handleDeleteCachePlaceholders) {
+				return false;
+			}
+		}
+		let objIds = placeholders['removeObjIds'] 
+			|| (placeholders['removeObjId'] && [placeholders['removeObjId']]) 
+			|| null;
+		if(handleDeleteCachePlaceholders) {
+			let fnObjIds = handleDeleteCachePlaceholders['removeObjIds']
+			|| (handleDeleteCachePlaceholders['removeObjId'] && [handleDeleteCachePlaceholders['removeObjId']])
+			|| null;
+			if(fnObjIds) {
+				objIds = fnObjIds;
+			}
+		}
+		if(! objIds) {
+			return false;
+		}
+		
+		let deleteObjs = this.getObjsInCacheMap(objIds, placeholders['objType']);
+		if(! placeholders['notCacheRemove']) {
+			if(handleDeleteCachePlaceholders) {
+				if(Utils.isFunc(handleDeleteCachePlaceholders['handleBeforeDeleteCache'])) {
+					params.isOnlyDeleteCache = true;
+					handleDeleteCachePlaceholders['handleBeforeDeleteCache'](params, deleteObjs, json);
+				}
+			}
+			if(Utils.isFunc(callbacks.onBeforeDeleteCache)) {
+				callbacks.onBeforeDeleteCache(objs, json);
+			}
+			this.removeObjsInCacheMap(objIds, placeholders['objType']);
+		}
+		
+		let parentObj;
+		let parentObjId = placeholders['parentObjId'];
+		if(parentObjId) {
+			parentObj = this.getObjInCacheMap(parentObjId, placeholders['parentObjType']);
+			if(parentObj) {
+				if(placeholders.hasOwnProperty('subObjIdsCacheKey')) {
+					let parentObjIds = parentObj[placeholders['subObjIdsCacheKey']];
+					if(parentObjIds) {
+						for(let i = 0; i < objIds.length; i ++) {
+							let index = parentObjIds.indexOf(objIds[i].toString());
+							if(index != -1) {
+								parentObjIds.splice(index, 1);
+							}
+						}
+						parentObj[placeholders['subObjIdsCacheKey']] = parentObjIds;
+					}
+				} else if(placeholders.hasOwnProperty('subObjIdCacheKey')) {
+					parentObj[placeholders['subObjIdCacheKey']] = null;
+				}
+				this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
+			}
+		}
+		if(Utils.isFunc(callbacks.onSuccess)) {
+			callbacks.onSuccess(deleteObjs, parentObj, json);
+		}
+		return deleteObjs;
+	}
+
+	/**
+	 * 处理创建/更新后获取指定ID(单个或集合)的新对象缓存
+	 */
+	async _handleDetailsFetch(params, callbacks, placeholders, json) {
+		let handleDetailsFetchPlaceholdersFn = placeholders['handleDetailsFetchPlaceholdersFn'];
+		if(! Utils.isFunc(handleDetailsFetchPlaceholdersFn)) {
+			return false;
+		}
+		let detailFetchPlaceholders = handleDetailsFetchPlaceholdersFn(json, params);
+		if(! detailFetchPlaceholders) {
+			return false;
+		}
+		return await this.queryTemplate({
+			fromCache: detailFetchPlaceholders['fromCache'],
+		}, {
+			onSuccess: (objs) => {
+				let isSingleResult = detailFetchPlaceholders['singleResult'];
+				if(detailFetchPlaceholders.hasOwnProperty('objId')) {
+					isSingleResult = true;
+				}
+				if(! Utils.isArray(objs)) {
+					objs = [objs];
+				}
+				if(Utils.isFunc(callbacks.onBeforeUpdateCache)) {
+					callbacks.onBeforeUpdateCache(isSingleResult ? objs[0] : objs, json);
+				}
+				let cacheable = this.handleCacheByRule('set', detailFetchPlaceholders, {objs: objs});
+				if(Utils.isFunc(callbacks.onSuccess)) {
+					callbacks.onSuccess(isSingleResult ? cacheable.objs[0] : cacheable.objs, cacheable.parentObj, json);
+				}
+			},
+		}, {
+			objId: detailFetchPlaceholders['objId'],
+			objIds: detailFetchPlaceholders['objIds'],
+			objType: detailFetchPlaceholders['objType'],
+			url: detailFetchPlaceholders['url'],
+			ajaxParams: detailFetchPlaceholders['ajaxParams'],
+		});
 	};
 };
 
@@ -478,11 +684,11 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 		sucessHandleResult = await ajaxSuccessFn(json);
 		if(sucessHandleResult === false) { /* 返回false表示失败 */
 			// 通用错误识别和接口错误识别, 返回true说明被处理了
-			if(! _handleError(json, ['COMMON', placeholders['errorTag']], callbacks, placeholders)) {
-				if(Utils.isFunc(callbacks.onFail)) {
-					callbacks.onFail(json.msg || placeholders['errorMsg'], json);
-				}
-			} 
+			if(Utils.isFunc(callbacks.onFail) && ! callbacks.onFail.default) {
+				callbacks.onFail(json.msg || placeholders['errorMsg'], json);
+			} else if(! _handleError(json, ['COMMON', placeholders['errorTag']], callbacks, placeholders)) {
+				callbacks.onFail(json.msg || placeholders['errorMsg'], json);
+			}
 			// 根据重试回调是否存在来调用内部定义回调 - 重试
 			let retryFn = placeholders['_retryFn'];
 			if(Utils.isFunc(retryFn)) {
@@ -506,25 +712,16 @@ class Model {
 		if(isFromCache) {
 			return this;
 		}
-		let id, name;
 		if(placehoders && placehoders['model']) {
-			let idKey = placehoders['model'].idKey;
-			let nameKey = placehoders['model'].nameKey;
-			if(Utils.isFunc(idKey)) {
-				idKey = idKey(row);
-			}
-			id = row[idKey];
-			name = row[nameKey];
+			const model = placehoders['model'];
+			Utils.forEach(model, (rowKey, key) => {
+				this[key.replace(/Key/g, '')] = row[rowKey];
+			});
 		}
-		if(! id) {
-			id = row.id || new Date().getTime();
+		if(! this.id) {
+			this.id = Utils.generateTemporyId();
 		}
-		if(! name) {
-			name = row.name || '#未知#';
-		}
-
-		this.id = id && id.toString();
-		this.name = name;
+		this.id = this.id && this.id.toString();
     }
 }
 Model.typeName = 'Model';
@@ -698,11 +895,13 @@ const _handleDefaultErrorCallbacks = (callbacks) => {
 		callbacks.onTooFast = () => {
 			toast('请慢点进行操作');
 		};
+		callbacks.onTooFast.default = true;
 	}
 	if(! callbacks.onPostSame) {
 		callbacks.onPostSame = () => {
 			toast('正在进行该项处理, 请耐心等待...');
 		};
+		callbacks.onPostSame.default = true;
 	}
 	if(! callbacks.onError) {
 		callbacks.onError = (response, errorMsg) => {
@@ -711,6 +910,7 @@ const _handleDefaultErrorCallbacks = (callbacks) => {
 			}
 			error(response);
 		};
+		callbacks.onError.default = true;
 	}
 	if(! callbacks.onFail) {
 		callbacks.onFail = (errorMsg, json) => {
@@ -719,6 +919,7 @@ const _handleDefaultErrorCallbacks = (callbacks) => {
 			}
 			error(json);
 		};
+		callbacks.onFail.default = true;
 	}
 };
 
@@ -813,11 +1014,16 @@ const _setPaginationTotal = (pagination, total, callbacks) => {
 	}
 	oldPagination.total = total;
 	oldPagination.totalPage = Math.ceil(total / oldPagination.count);
+	
 	// 最后一页了, 进行处理
 	let isLastPage = oldPagination.page >= oldPagination.totalPage;
 	if(isLastPage) {
 		oldPagination.$pagingEnd = true;
+		oldPagination.loaded = oldPagination.count * (oldPagination.page - 1) + (total % oldPagination.count);
+	} else {
+		oldPagination.loaded = oldPagination.count * oldPagination.page;
 	}
+	oldPagination.left = total - oldPagination.loaded;
 	Utils.copyProperties(oldPagination, pagination);
 	_putInCacheMap(PAGINATION_CACHE_NAME, oldPagination, true);
 	if(isLastPage && callbacks && Utils.isFunc(callbacks.onLastPage)) {
@@ -981,145 +1187,4 @@ const _markTaskStatus = (task, status) => {
 		return true;
 	}
 	return false;
-};
-
-/**
- * 处理删除后删除指定ID(单个或集合)的缓存对象
- */
-const _handleDeleteCache = (params, callbacks, placeholders, json) => {
-	let handleDeleteCachePlaceholdersFn = placeholders['handleDeleteCachePlaceholdersFn'];
-	let handleDeleteCachePlaceholders;
-	if(Utils.isFunc(handleDeleteCachePlaceholdersFn)) {
-		handleDeleteCachePlaceholders = handleDeleteCachePlaceholdersFn(json, params);
-		if(! handleDeleteCachePlaceholders) {
-			return false;
-		}
-	}
-	let objIds = placeholders['removeObjIds'] 
-		|| (placeholders['removeObjId'] && [placeholders['removeObjId']]) 
-		|| null;
-	if(handleDeleteCachePlaceholders) {
-		let fnObjIds = handleDeleteCachePlaceholders['removeObjIds']
-		|| (handleDeleteCachePlaceholders['removeObjId'] && [handleDeleteCachePlaceholders['removeObjId']])
-		|| null;
-		if(fnObjIds) {
-			objIds = fnObjIds;
-		}
-	}
-	if(! objIds) {
-		return false;
-	}
-	
-	let deleteObjs = this.getObjsInCacheMap(objIds, placeholders['objType']);
-	if(! placeholders['notCacheRemove']) {
-		if(handleDeleteCachePlaceholders) {
-			if(Utils.isFunc(handleDeleteCachePlaceholders['handleBeforeDeleteCache'])) {
-				params.isOnlyDeleteCache = true;
-				handleDeleteCachePlaceholders['handleBeforeDeleteCache'](params, deleteObjs, json);
-			}
-		}
-		if(Utils.isFunc(callbacks.onBeforeDeleteCache)) {
-			callbacks.onBeforeDeleteCache(objs, json);
-		}
-		this.removeObjsInCacheMap(objIds, placeholders['objType']);
-	}
-	
-	let parentObj;
-	let parentObjId = placeholders['parentObjId'];
-	if(parentObjId) {
-		parentObj = this.getObjInCacheMap(parentObjId, placeholders['parentObjType']);
-		if(parentObj) {
-			if(placeholders.hasOwnProperty('subObjIdsCacheKey')) {
-				let parentObjIds = parentObj[placeholders['subObjIdsCacheKey']];
-				if(parentObjIds) {
-					for(let i = 0; i < objIds.length; i ++) {
-						let index = parentObjIds.indexOf(objIds[i].toString());
-						if(index != -1) {
-							parentObjIds.splice(index, 1);
-						}
-					}
-					parentObj[placeholders['subObjIdsCacheKey']] = parentObjIds;
-				}
-			} else if(placeholders.hasOwnProperty('subObjIdCacheKey')) {
-				parentObj[placeholders['subObjIdCacheKey']] = null;
-			}
-			this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
-		}
-	}
-	if(Utils.isFunc(callbacks.onSuccess)) {
-		callbacks.onSuccess(deleteObjs, parentObj, json);
-	}
-	return deleteObjs;
-}
-
-/**
- * 处理创建/更新后获取指定ID(单个或集合)的新对象缓存
- */
-const _handleDetailsFetch = async (params, callbacks, placeholders, json) => {
-	let handleDetailsFetchPlaceholdersFn = placeholders['handleDetailsFetchPlaceholdersFn'];
-	if(! Utils.isFunc(handleDetailsFetchPlaceholdersFn)) {
-		return false;
-	}
-	let detailFetchPlaceholders = handleDetailsFetchPlaceholdersFn(json, params);
-	if(! detailFetchPlaceholders) {
-		return false;
-	}
-	return await this.queryTemplate({
-		fromCache: detailFetchPlaceholders['fromCache'],
-	}, {
-		onSuccess: (objs) => {
-			let isSingleResult = detailFetchPlaceholders['isSingleResult'];
-			if(detailFetchPlaceholders.hasOwnProperty('objId')) {
-				isSingleResult = true;
-			}
-			
-			if(! Utils.isArray(objs)) {
-				objs = [objs];
-			}
-			
-			if(Utils.isFunc(callbacks.onBeforeUpdateCache)) {
-				callbacks.onBeforeUpdateCache(isSingleResult ? objs[0] : objs, json);
-			}
-			this.putObjsInCacheMap(objs, detailFetchPlaceholders['objType']);
-			
-			let objIds = Utils.asListByKey(objs, 'id');
-			
-			let parentObj = null;
-			let parentObjId = placeholders['parentObjId'];
-			if(parentObjId) {
-				parentObj = this.getObjInCacheMap(parentObjId, placeholders['parentObjType']);
-				if(parentObj) {
-					if(placeholders.hasOwnProperty('subObjIdsCacheKey')) {
-						let subObjIds = parentObj[placeholders['subObjIdsCacheKey']];
-						if(subObjIds) {
-							for(let i = 0; i < objIds.length; i ++) {
-								let objId = objIds[i];
-								if(objId === undefined || objId === null) {
-									continue;
-								}
-								if(subObjIds.indexOf(objId.toString()) == -1) {
-									subObjIds.push(objId.toString());
-								}
-							}
-						} else {
-							subObjIds = objIds;
-						}
-						parentObj[placeholders['subObjIdsCacheKey']] = subObjIds;
-					} else if(placeholders.hasOwnProperty('subObjIdCacheKey')) {
-						parentObj[placeholders['subObjIdCacheKey']] = objIds[0];
-					}
-					this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
-				}
-			}
-			if(Utils.isFunc(callbacks.onSuccess)) {
-				callbacks.onSuccess(isSingleResult ? objs[0] : objs, parentObj, json);
-			}
-		},
-	}, {
-		objId: detailFetchPlaceholders['objId'],
-		objIds: detailFetchPlaceholders['objIds'],
-		objType: detailFetchPlaceholders['objType'],
-		url: detailFetchPlaceholders['url'],
-		ajaxParams: detailFetchPlaceholders['ajaxParams'],
-	});
 };

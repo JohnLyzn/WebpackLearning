@@ -131,6 +131,14 @@ export const error = (msg) => {
  * 提示信息(主要)
  */
 export const toast = (message, type = 'bottom', duration = 2000) => {
+	if(getClientType().startsWith('1')) {
+		require('element-ui').Message({
+			message: message,
+			type: type,
+			duration: duration,
+		});
+		return;
+	}
 	require('mint-ui').Toast({
 		message: message,
 		position: type,
@@ -142,6 +150,14 @@ export const toast = (message, type = 'bottom', duration = 2000) => {
  * 通知信息(次要)
  */
 export const notify = (message, type = 'info', duration = 2000) => {
+	if(getClientType().startsWith('1')) {
+		require('element-ui').Notification({
+			message: message,
+			type: type,
+			duration: duration,
+		});
+		return;
+	}
 	require('mint-ui').Toast({
 		message: message,
 		position: type,
@@ -153,6 +169,12 @@ export const notify = (message, type = 'info', duration = 2000) => {
  * 弹出提示框
  */
 export const alert = (message, title, callback) => {
+	if(getClientType().startsWith('1')) {
+		require('element-ui').MessageBox.alert(message, title, {
+			callback: callback,
+		});
+		return;
+	}
 	require('mint-ui').MessageBox.alert(message, title).then(callback);
 };
 
@@ -160,6 +182,12 @@ export const alert = (message, title, callback) => {
  * 弹出多个确认的提示框
  */
 export const confirm = (message, title, callback) => {
+	if(getClientType().startsWith('1')) {
+		require('element-ui').MessageBox.confirm(message, title, {
+			callback: callback,
+		});
+		return;
+	}
 	require('mint-ui').MessageBox.confirm(message).then(callback, callback);
 };
 
@@ -167,6 +195,12 @@ export const confirm = (message, title, callback) => {
  * 弹出输入内容的提示框
  */
 export const prompt = (message, title, callback) => {
+	if(getClientType().startsWith('1')) {
+		require('element-ui').MessageBox.confirm(message, title, {
+			callback: callback,
+		});
+		return;
+	}
 	require('mint-ui').MessageBox.prompt(message).then(callback);
 };
 
@@ -174,6 +208,10 @@ export const prompt = (message, title, callback) => {
  * 清除提示框
  */
 export const clearDialog = () => {
+	if(getClientType().startsWith('1')) {
+
+		return;
+	}
 	require('mint-ui').MessageBox.close();
 };
 
@@ -188,38 +226,38 @@ export const getCacheManager = () => {
 	return cacheManager;
 };
 
-// import BaseService from 'service/base_service';
+import BaseService from 'service/base_service';
 
-// const baseService = new BaseService();
+const baseService = new BaseService();
 
-// /**
-//  * 私有: 远程请求获取基础信息
-//  */
-// const fetchConfigs = async () => {
-// 	return await baseService.queryTemplate({}, {}, {
-// 		ajaxParams: {
-// 			action: 'getConfigs',
-// 		},
-// 		singleResult: true,
-// 		errorTag: 'getConfigs',
-// 		errorMsg: '获取基本信息失败',
-// 	});
-// };
+/**
+ * 私有: 远程请求获取基础信息
+ */
+const fetchConfigs = async () => {
+	return await baseService.queryTemplate({}, {}, {
+		ajaxParams: {
+			action: 'getConfigs',
+		},
+		singleResult: true,
+		errorTag: 'getConfigs',
+		errorMsg: '获取基本信息失败',
+	});
+};
 
-// /**
-//  * 获取一些基础信息
-//  */
-// const CACHE_KEY_CONFIGS = 'DMT#COFNIGS';
-// export const getConfigs = async () => {
-// 	const cacheManager = getCacheManager();
-// 	const config = cacheManager.get(CACHE_KEY_CONFIGS);
-// 	if (config) {
-// 		return config;
-// 	}
-// 	const fetchConfig = await fetchConfigs();
-// 	if (!fetchConfig) {
-// 		throw new Error('获取工具配置信息失败');
-// 	}
-// 	cacheManager.cache(CACHE_KEY_CONFIGS, fetchConfig);
-// 	return fetchConfig;
-// };
+/**
+ * 获取一些基础信息
+ */
+const CACHE_KEY_CONFIGS = 'DMT#COFNIGS';
+export const getConfigs = async () => {
+	const cacheManager = getCacheManager();
+	const config = cacheManager.get(CACHE_KEY_CONFIGS);
+	if (config) {
+		return config;
+	}
+	const fetchConfig = await fetchConfigs();
+	if (!fetchConfig) {
+		throw new Error('获取工具配置信息失败');
+	}
+	cacheManager.cache(CACHE_KEY_CONFIGS, fetchConfig);
+	return fetchConfig;
+};

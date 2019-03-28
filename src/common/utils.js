@@ -131,6 +131,9 @@ const Utils = {
 				continue;
 			}
 			var formVal = from[property];
+			if(to[property] !== undefined && formVal === undefined) {
+				continue;
+			}
 			if(formVal && typeof formVal == 'object') {
 				var copyObj = null;
 				if(formVal instanceof Array) {

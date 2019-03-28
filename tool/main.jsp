@@ -73,9 +73,6 @@
 		window.g_clientType = '${clientType}'; // 工具当前的运行平台
 		window.g_thisToolId = '${toolID}'; // 工具的ID
 		
-		window.onload = function() { 
-			gotoDebug();
-		}
 		// 根据需要添加此项, 以把工具运行信息传递到webpack调试服务器中
 		const ENV_KEYS = [
 			'g_runToolUrl',
@@ -89,11 +86,12 @@
 			'g_clientType',
 			'g_thisToolId'
 		];
+
 		function getEnvValues() {
 			const result = {};
 			for(var i = 0; i < ENV_KEYS.length; i ++) {
 				const key = ENV_KEYS[i];
-				result[key] = decodeURI(window[key]).replace(/"/g, '\"');
+				result[key] = window[key];
 			}
 			return result;
 		}
@@ -112,6 +110,10 @@
 				return;
 			}
 			initInfo.style.display = 'none';
+		}
+
+		window.onload = function() { 
+			gotoDebug();
 		}
 	</script>
 </body>

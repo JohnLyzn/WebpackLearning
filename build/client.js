@@ -18,5 +18,12 @@ hotClient.subscribe(function(event) {
 // 加载环境变量
 const env = sessionStorage.getItem(ENV_STORAGE_KEY);
 if(env) {
-	Object.assign(window, JSON.parse(env));
+	const args = JSON.parse(env);
+	for(let key in args) {
+		if(key.indexOf('Url') == -1) {
+			continue;
+		}
+		args[key] = encodeURI(decodeURIComponent(args[key]));
+	}
+	Object.assign(window, args);
 }
