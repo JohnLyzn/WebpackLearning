@@ -579,7 +579,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 		}
 	}
 	// 额外参数加入
-	const copyParamNames = ['query', 'resources', 'extend', 'field', 'sort'];
+	const copyParamNames = Config.COPY_PARAM_NAMES;
 	for(let i = 0; i < copyParamNames.length; i ++ ) {
 		const copyParamName = copyParamNames[i];
 		if(! params.hasOwnProperty(copyParamName) || ! params[copyParamName]) {

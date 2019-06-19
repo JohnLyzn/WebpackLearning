@@ -1,0 +1,1 @@
+export const BIND_CURRENT_USER = 'BIND_CURRENT_USER';

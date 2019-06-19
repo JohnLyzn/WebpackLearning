@@ -30,19 +30,34 @@
 > 在`body`的结束标签前作为第一个script标签添加以下代码
 >```html
 > <script type="text/javascript">
->   window.g_runToolUrl = '${fyToolUrl}';
->   window.g_callToolUrl = '${fyCallToolUrl}';
->   window.g_forwardUrl = '${fyForwardUrl}';
->   window.g_resourceUrl = '${resourceUrl}';
->   window.g_userId = '${userID}';
->   window.g_accessToken = '${accessToken}';
->   window.g_bandId = '${bViewID}';
->   window.g_rtParam = '${rtParam}';
->   window.g_clientType = '${clientType}';
->   window.g_thisToolId = '${toolID}';
+>   window.g_runToolUrl = '${fyToolUrl}'; // 数据接口
+>   window.g_callToolUrl = '${fyCallToolUrl}'; // 工具调用
+>   window.g_forwardUrl = '${fyForwardUrl}'; // 跳转接口
+>   window.g_resourceUrl = '${resourceUrl}'; // 静态资源
+>   window.g_userId = '${userID}'; // 当前用户账号
+>   window.g_accessToken = '${accessToken}'; // 当前用户的accessToken
+>   window.g_bandId = '${bViewID}'; // 当前运行的帮区ID
+>   window.g_rtParam = '${rtParam}'; // 工具运行参数
+>   window.g_clientType = '${clientType}'; // 工具当前的运行平台
+>   window.g_thisToolId = '${toolID}'; // 工具的ID
 > </script>
 >```      
->注意不要更改全局变量的名称以及不要修改其它内容. 保存文件.        
+> TOOL SDK 3.0 以后为:      
+>```html
+> <script type="text/javascript">
+>   window.g_runToolUrl = '${actionUrl}'; // 数据接口
+>   window.g_callToolUrl = '${runToolUrl}'; // 工具调用
+>   window.g_forwardUrl = '${forwardUrl}'; // 跳转接口
+>   window.g_resourceUrl = '${resourceUrl}'; // 静态资源
+>   window.g_userId = '${userID}'; // 当前用户账号
+>   window.g_accessToken = '${accessToken}'; // 当前用户的accessToken
+>   window.g_bandId = '${bandID}'; // 当前运行的帮区ID
+>   window.g_rtParam = '${toolParam}'; // 工具运行参数
+>   window.g_clientType = '${clientType}'; // 工具当前的运行平台
+>   window.g_thisToolId = '${toolID}'; // 工具的ID
+> </script>
+>```          
+>注意不要更改全局变量的名称以及不要修改其它内容. 保存文件.      
 > 5. 启动工具, 进行功能测试(不用webpack调试服务器). 通过后打包为jar准备部署.
 ### 注意问题
 >+ 工具的运行参数请参考`tool/main.jsp`中的`ENV_KEYS`的键. 在工具代码中认为这些键对应的值已存在就好, 直接引用(不过还是建议在`common/env.js`提供接口).
@@ -169,20 +184,20 @@
 >> return xxxTemplate(params, callbacks, placeholders, task /* GETTER方法可以不要此参数 */);
 >>```
 >> 其中`params`为参数对象, 包括两个部分: 通用参数(缓存策略, 缓存查询, 返回值指定等, 可选); 业务参数(ajax请求参数等, 由service决定).     
->>> `pagination`: 分页对象{id, page, count, total, totalPage, $pagingEnd, command}, 一般指定id, count, command即可, 其它内容会自动填充. 其中command可用值有next,previous,reset,refresh(默认).   
->>> `singleResult`: 指定只返回单个结果   
+>>> `pagination`: 分页对象{id, page, count, total, totalPage, loaded, left, $pagingEnd, command}, 一般指定id, count, command即可, 其它内容会自动填充. 其中command可用值有next,previous,reset,refresh(默认).   
+>>> `singleResult`: 指定只返回单个结果, 如果无结果会直接进入`onFail`回调   
 >>> `fromCache`: 允许从缓存中获取, 默认不从缓存中获取.   
 >>> `preventAjax`: 不进行ajax请求, 如果不用缓存则请求无效   
 >>> `isOnlyDeleteCache`:是否只删除缓存, 用于去除缓存关系.   
 >>> `searches`: 搜索条件, 该对象中的内容会直接作为ajax请求参数.   
 >>> `cacheSearches`: 搜索缓存的搜索条件, 不使用缓存无效.   
 >>> `其它`: 可以有其它参数, 由service定义    
->> **注意: `params`中query, resources, extend, field, sort会被直接JSON.stringify作为参数, 这是吾托帮核心或商店的公共参数**
+>> **注意: `params`中query, resources, extend, field, sort会被直接JSON.stringify作为参数, 这是吾托帮核心或商店的公共参数, 可以在`constants.js`中`Config`的`COPY_PARAM_NAMES`处修改**
 
 >> 至于`callbacks`则为回调对象(*`onSuccess`同时支持回调和async+await的处理方式*).
 >> `callbacks`可用的键有(按调用顺序):
 >>> `onStart`: ajax请求开始时回调. 参数: *()*   
->>> `onSuccess`: ajax请求成功拿到正确的数据时回调. 参数: *(结果Model, 该结果的父Model, json)* 或如果没有指定Model则为: *(json)*   
+>>> `onSuccess`: ajax请求成功拿到正确的数据时回调. 参数: *(结果Model, 该结果的父Model, json)*, 如果没有指定model则第一项永远为null, 没有指定父model则第二项永远为null   
 >>> `onFail`: ajax请求没有成功拿到数据, 但是请求是成功的情况下回调, 例如参数错误时. 其中错误消息获取规则为有json中有msg使用msg, 有错误处理器处理就使用该处理结果, 否则使用`placeholders`中的`errorMsg`.参数为: *(错误的提示消息, json)*     
 >>> `onError`: ajax请求发生错误回调, 例如服务器没有响应. 参数: *()*    
 >>> `onEnd`: ajax请求结束时, 总是回调.参数: *()*    

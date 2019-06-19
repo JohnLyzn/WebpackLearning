@@ -72,6 +72,18 @@
 		window.g_rtParam = '${rtParam}'; // 工具运行参数
 		window.g_clientType = '${clientType}'; // 工具当前的运行平台
 		window.g_thisToolId = '${toolID}'; // 工具的ID
+
+		// TOOL SDK 版本3.0以后使用以下代码
+		// window.g_runToolUrl = '${actionUrl}'; // 数据接口
+		// window.g_callToolUrl = '${runToolUrl}'; // 工具调用
+		// window.g_forwardUrl = '${forwardUrl}'; // 跳转接口
+		// window.g_resourceUrl = '${resourceUrl}'; // 静态资源
+		// window.g_userId = '${userID}'; // 当前用户账号
+		// window.g_accessToken = '${accessToken}'; // 当前用户的accessToken
+		// window.g_bandId = '${bandID}'; // 当前运行的帮区ID
+		// window.g_rtParam = '${toolParam}'; // 工具运行参数
+		// window.g_clientType = '${clientType}'; // 工具当前的运行平台
+		// window.g_thisToolId = '${toolID}'; // 工具的ID
 		
 		// 根据需要添加此项, 以把工具运行信息传递到webpack调试服务器中
 		const ENV_KEYS = [
@@ -91,7 +103,17 @@
 			const result = {};
 			for(var i = 0; i < ENV_KEYS.length; i ++) {
 				const key = ENV_KEYS[i];
-				result[key] = window[key];
+				const value = window[key];
+				// 只保留项目根路径, 自动相对形成代理
+				if(value.startsWith('http://127.0.0.1')
+					|| value.startsWith('http://localhost')) {
+					const matches = value.match(/http:\/\/.*?\//);
+					if(matches.length > 0) {
+						result[key] = value.replace(matches[0], '/');
+					}
+					continue;
+				}
+				result[key] = value;
 			}
 			return result;
 		}
@@ -99,7 +121,7 @@
 			const initInfo = document.getElementById('initInfo');
 			const input = document.getElementsByTagName('input')[0];
 			const iframe = document.getElementById('devIframe');
-			iframe.src = input.value + '?env=' + JSON.stringify(getEnvValues());
+			iframe.src = input.value + '?env=' + encodeURIComponent(JSON.stringify(getEnvValues()));
 			iframe.style.display = 'inline-block';
 		}
 		function toggleServerInput() {

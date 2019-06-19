@@ -39,6 +39,9 @@ p {
     padding: .5rem;
     line-height: 18px;
 }
+a {
+    cursor: pointer;
+}
 /* 常用样式 */  
 [v-cloak], [hidden] {
 	display: none !important;

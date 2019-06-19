@@ -15,9 +15,25 @@
 
 	import 'style/reset';
 	import 'style/common';
-	
-	// Vue.directive('loadmore', ...);
 
+	// import theme from 'muse-ui/lib/theme';
+	// theme.add('teal', {
+	// 	primary: '#FF8900',
+	// 	info: '#FF8900',
+	// }, 'light');
+	// theme.use('teal');
+
+	import Helpers from 'muse-ui/lib/Helpers';
+	Vue.use(Helpers);
+
+	import MuseUI from 'muse-ui';
+	import 'muse-ui/dist/muse-ui.css';
+	import 'style/muse-ui-variables';
+
+	Vue.use(MuseUI);
+
+	import 'style/iconfont/iconfont.css';
+	
   	export default {
     	data() {
             return {
@@ -39,7 +55,12 @@
 	  	opacity: 0;
 	}
 	.main-container {
+		max-width: 645px;
+		position: relative;
+		margin: 0 auto;
 		.common-header {
+			max-width: 645px;
+			margin: 0 auto;
 			background: $theme;
 			height: 45px;
 			.mint-header-title {
@@ -48,8 +69,7 @@
 			}
 		}
 		.main-body {
-			width: 100vw;
-			height: 100vh;
+			width: 100%;
 			position: absolute;
 			top: 0;
 		}

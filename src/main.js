@@ -6,6 +6,7 @@ import FastClick from 'fastclick'
 import {getRunToolParam,getClientType,getConfigs} from 'common/env';
 import {Config} from 'common/constants';
 import routes from 'router/router';
+import store from './store';
 
 // 处理app旋转事件
 // (function(doc, win) {
@@ -50,7 +51,8 @@ const router = new VueRouter({
 });
 /* 创建根组件 */
 new Vue({
-    router,
+	router,
+	store,
 	async mounted() {
 		/* 解析工具运行参数 */
 		const runToolParam = getRunToolParam() || '';
