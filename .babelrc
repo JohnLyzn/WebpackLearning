@@ -1,12 +1,32 @@
 {
-  "presets": [["es2015", { "modules": false }], "stage-3"],
+  "presets": [
+      [
+          "@babel/preset-env",
+          {
+              "targets": {
+                  "node":3
+              },
+          }
+      ]
+  ],
   "plugins": [
     [
-      "component",
-      {
-        "libraryName": "mint-ui",
-        "style": true
-      }
+        "@babel/plugin-transform-runtime",
+        {
+            "corejs": false,
+            "helpers": false,
+            "regenerator": false,
+            "useESModules": false
+        }
+    ],
+    [
+        "import", 
+        {
+            "libraryName": "muse-ui",
+            "libraryDirectory": "lib",
+            "camel2DashComponentName": false
+        }
     ]
-  ]
+  ],
+  "comments": false
 }

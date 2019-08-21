@@ -75,22 +75,47 @@ export const search = (objs, searchKey, searchValue, strict) => {
 	return results;
 };
 
-import axios from 'axios'
-
+import axios from 'axios';
+import qs from 'qs';
 /**
  * 远程Ajax请求
  * @param {Object} option 远程请求参数
  */
 export const ajax = async (option) => {
-	let response = await axios.request({
-		url: option.url,
-		params: option.data,
-		method: option.type,
-	}).catch(err => {
-		if (typeof option.error == 'function') {
-			option.error(err);
+	let response;
+	if(option.type && option.type.toUpperCase() == 'POST') {
+		let formData = new FormData();
+		if(option.data) {
+			for(let key in option.data) {
+				if(! option.data.hasOwnProperty(key)) {
+					continue;
+				}
+				formData.append(key, option.data[key]);
+			}
 		}
-	});
+		response = await axios.post(option.url, formData, {
+			headers: {
+				'Content-Type': 'multipart/form-data'
+			}
+		}).catch(err => {
+			if (typeof option.error == 'function') {
+				option.error(err);
+			}
+		});
+	} else {
+		response = await axios.request({
+			url: option.url,
+			params: option.data,
+			method: option.type,
+			paramsSerializer: (params) => {
+				return qs.stringify(params, { arrayFormat: 'brackets' });
+			}
+		}).catch(err => {
+			if (typeof option.error == 'function') {
+				option.error(err);
+			}
+		});
+	}
 	if(! response) {
 		return;
 	}
@@ -132,7 +157,16 @@ import 'muse-ui-message/dist/muse-ui-message.css';
 import Vue from 'vue';
 import Message from 'muse-ui-message';
 import Toast from 'muse-ui-toast';
-Vue.use(Toast);
+Vue.use(Toast, {
+	position: 'top',               // 弹出的位置
+	time: 2000,                       // 显示的时长
+	closeIcon: ':iconfont iconclose',               // 关闭的图标
+	close: true,                      // 是否显示关闭按钮
+	successIcon: ':iconfont iconsuccess',      // 成功信息图标
+	infoIcon: ':iconfont iconinfo',                 // 信息信息图标
+	warningIcon: ':iconfont iconwarn',     // 提醒信息图标
+	errorIcon: ':iconfont iconerror'              // 错误信息图标
+});
 Vue.use(Message);
 
 /**
@@ -268,18 +302,34 @@ export const getElementRect = (el) => {
 };
 
 /**
- * 获取方法参数的名称
+ * 处理浏览器返回
  */
-export const getParameterName = (fn) => {
-    if(typeof fn !== 'object' && typeof fn !== 'function' ) return;
-    const COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
-    const DEFAULT_PARAMS = /=[^,)]+/mg;
-    const FAT_ARROWS = /=>.*$/mg;
-    let code = fn.prototype ? fn.prototype.constructor.toString() : fn.toString();
-    code = code
-        .replace(COMMENTS, '')
-        .replace(FAT_ARROWS, '')
-        .replace(DEFAULT_PARAMS, '');
-    let result = code.slice(code.indexOf('(') + 1, code.indexOf(')')).match(/([^\s,]+)/g);
-    return result === null ? [] :result;
+export const pageBack = () => {
+	// 尝试回退到上一页
+	if (navigator.userAgent.indexOf('MSIE') != -1 &&
+		navigator.userAgent.indexOf('Opera') == -1) {
+		// IE      
+		if (history.length > 0) {
+			window.history.go(-1);
+			return;
+		}
+	}
+	if (navigator.userAgent.indexOf('Firefox') != -1 ||
+		navigator.userAgent.indexOf('Opera') != -1 ||
+		navigator.userAgent.indexOf('Safari') != -1 ||
+		navigator.userAgent.indexOf('Chrome') != -1 ||
+		navigator.userAgent.indexOf('WebKit') != -1) {
+		//非IE浏览器
+		if (window.history.length > 1) {
+			window.history.go(-1);
+			return;
+		}
+	}
+	// 如果没有上一页, 则关闭标签页
+	if(g_clientType < 200) {
+		window.close();
+		return;
+	}
+	// 如果是APP调用api
+	require('plugin/API').quitToolPageAPI();
 }

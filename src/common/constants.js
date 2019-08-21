@@ -59,11 +59,10 @@ export const ErrorLanguages = {
 			notify('服务异常!');
 		},
 	}],
-//			createDepartment: [{
-//				srcPiece: '该帮区下不能挂载相同名称的同种类型的资源',
-//				handle: {
-//					type: 'toast',
-//					msg: '已有相同名称的部门',
-//				},
-//			}],
+	// serviceErrorTag: [{
+	// 	msgPiece: '错误信息片段或全部',
+	// 	handler: function() {
+	// 		notify('作需要的全局处理!如需局部处理调用Service时使用onFail');
+	// 	},
+	// }],
 };

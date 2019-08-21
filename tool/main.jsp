@@ -61,29 +61,16 @@
 	<iframe id="devIframe"></iframe>
 	
 	<script type="text/javascript">
-		// 此节代码打包后复制到main.html中
-		window.g_runToolUrl = '${fyToolUrl}'; // 数据接口
-		window.g_callToolUrl = '${fyCallToolUrl}'; // 工具调用
-		window.g_forwardUrl = '${fyForwardUrl}'; // 跳转接口
+		window.g_runToolUrl = '${actionUrl}'; // 数据接口
+		window.g_callToolUrl = '${runToolUrl}'; // 工具调用
+		window.g_forwardUrl = '${forwardUrl}'; // 跳转接口
 		window.g_resourceUrl = '${resourceUrl}'; // 静态资源
 		window.g_userId = '${userID}'; // 当前用户账号
 		window.g_accessToken = '${accessToken}'; // 当前用户的accessToken
-		window.g_bandId = '${bViewID}'; // 当前运行的帮区ID
-		window.g_rtParam = '${rtParam}'; // 工具运行参数
+		window.g_bandId = '${bandID}'; // 当前运行的帮区ID
+		window.g_rtParam = '${toolParam}'; // 工具运行参数
 		window.g_clientType = '${clientType}'; // 工具当前的运行平台
 		window.g_thisToolId = '${toolID}'; // 工具的ID
-
-		// TOOL SDK 版本3.0以后使用以下代码
-		// window.g_runToolUrl = '${actionUrl}'; // 数据接口
-		// window.g_callToolUrl = '${runToolUrl}'; // 工具调用
-		// window.g_forwardUrl = '${forwardUrl}'; // 跳转接口
-		// window.g_resourceUrl = '${resourceUrl}'; // 静态资源
-		// window.g_userId = '${userID}'; // 当前用户账号
-		// window.g_accessToken = '${accessToken}'; // 当前用户的accessToken
-		// window.g_bandId = '${bandID}'; // 当前运行的帮区ID
-		// window.g_rtParam = '${toolParam}'; // 工具运行参数
-		// window.g_clientType = '${clientType}'; // 工具当前的运行平台
-		// window.g_thisToolId = '${toolID}'; // 工具的ID
 		
 		// 根据需要添加此项, 以把工具运行信息传递到webpack调试服务器中
 		const ENV_KEYS = [
@@ -105,8 +92,8 @@
 				const key = ENV_KEYS[i];
 				const value = window[key];
 				// 只保留项目根路径, 自动相对形成代理
-				if(value.startsWith('http://127.0.0.1')
-					|| value.startsWith('http://localhost')) {
+				if(value.indexOf('http://127.0.0.1') == 0
+					|| value.indexOf('http://localhost') == 0) {
 					const matches = value.match(/http:\/\/.*?\//);
 					if(matches.length > 0) {
 						result[key] = value.replace(matches[0], '/');

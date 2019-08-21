@@ -255,7 +255,7 @@ export default class BaseService {
 		// 允许查找不到结果进行sucess的回调
 		let canNotFound = params['canNotFound'] || placeholders['canNotFound'];
 		// 处理成功的回调
-		const success4Inner = (cacheable) => {
+		const success4Inner = (cacheable, json) => {
 			if(singleResult === undefined) {
 				singleResult = cacheable.singleResult;
 			}
@@ -263,7 +263,7 @@ export default class BaseService {
 				let continueParams = callbacks.onSuccess(
 					singleResult ? cacheable.objs[0] : cacheable.objs,
 					cacheable.parentObj,
-					params);
+					json);
 				if(continueParams) {
 					let continueFn = placeholders['continueFn'];
 					if(Utils.isFunc(continueFn)) {
@@ -288,7 +288,7 @@ export default class BaseService {
 					cacheable.objs = _setCachePagination(cacheable.objs, params.pagination, callbacks);
 				}
 				if(cacheable.objs.length) {
-					return success4Inner(cacheable);
+					return success4Inner(cacheable, {$isCache:true});
 				}
 			}
 			if(params.preventAjax) {
@@ -311,7 +311,7 @@ export default class BaseService {
 			if(! rows || (! canNotFound && singleResult && rows.length == 0)) {
 				return false;
 			}
-			return success4Inner(this.handleCacheByRule('set', placeholders, {objs: rows}));
+			return success4Inner(this.handleCacheByRule('set', placeholders, {objs: rows}), json);
 		};
 		placeholders._ajaxErrorFn = null;
 		return _ajaxTemplate(params, callbacks, placeholders, task);

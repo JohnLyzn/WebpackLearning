@@ -8,7 +8,7 @@ hotClient.subscribe(function(event) {
 		window.location.reload();
 	}
 	if(event.env) {
-		const isFirst = ! sessionStorage.getItem(ENV_STORAGE_KEY);
+		var isFirst = ! sessionStorage.getItem(ENV_STORAGE_KEY);
 		sessionStorage.setItem(ENV_STORAGE_KEY, event.env);
 		if(isFirst) {
 			window.location.reload();
@@ -16,14 +16,16 @@ hotClient.subscribe(function(event) {
 	}
 });
 // 加载环境变量
-const env = sessionStorage.getItem(ENV_STORAGE_KEY);
+var env = sessionStorage.getItem(ENV_STORAGE_KEY);
 if(env) {
-	const args = JSON.parse(env);
-	for(let key in args) {
+	var args = JSON.parse(env);
+	for(var key in args) {
 		if(key.indexOf('Url') == -1) {
 			continue;
 		}
 		args[key] = encodeURI(decodeURIComponent(args[key]));
 	}
-	Object.assign(window, args);
+	for(var key in args) {
+		window[key] = args[key];
+	}
 }

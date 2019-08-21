@@ -3,6 +3,7 @@
 module.exports = {
     base: {
         index: 'main.html',
+        babelShim: [],
         prefixerShim: ['iOS >= 7', 'Android >= 4.1'],
     },
     dev: { /* 开发打包时相关配置 */

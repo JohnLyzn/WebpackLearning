@@ -5,10 +5,15 @@ const context = require('./context');
 
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 
+const babelShim = [];
+config.base.babelShim.forEach((babelShimPath) => {
+    babelShim.push(path.resolve(__dirname, babelShimPath));
+});
+
 const WebpackBaseConfig = {
     mode: context.environment(),
     entry: {
-        main: ['@babel/polyfill', path.resolve(__dirname, '../src/main.js')],
+        main: ['babel-polyfill', path.resolve(__dirname, '../src/main.js')],
     },
     output: {
         filename: context.assetsPath('js/[name].js'),
@@ -42,13 +47,17 @@ const WebpackBaseConfig = {
         }, {
             test: /\.js$/,
             loader: 'babel-loader',
-            options: {
-            },
-            include: path.resolve(__dirname, '../src'),
+            include: [
+                path.resolve(__dirname, '../src'),
+                path.resolve(__dirname, '../test')
+            ].concat(babelShim),
             exclude: file => (
                 /node_modules/.test(file) &&
                 !/\.vue\.js/.test(file)
-            )
+            ),
+            options: {
+                presets: ['es2015']
+            }
         }, { 
             test:/\.css$/,
             use: [
