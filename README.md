@@ -234,13 +234,13 @@
 >>> `errorTag`: 请求错误标签, 用于错误处理器中识别规则所属使用的key.   
 >>> `errorMsg`:默认的请求错误时使用的错误提示.   
 
->> `task`参数用于标识任务. 允许请求受到一些限制, 比如不允许进行短时间内容的重复请求以及未处理完成的重复请求. 未来会添加错误后自动重试和供用户查看的全局的请求任务列表进行任务管理等等.
+>> `task`参数用于标识任务. 允许请求受到一些限制, 比如不允许进行短时间内容的重复请求以及未处理完成的重复请求. 未来会添加错误后自动重试和供用户查看的全局的请求任务列表进行任务管理(失败重试,中断)等等.
 >>> `id`: 任务的ID, 识别使用的唯一键   
 >>> `title`: 任务的标题    
 >>> `detail`: 任务的内容描述   
 
 > **完整的Model例子(xxx_model.js, 可拷贝修改使用):**  
-> *建议这样写, model的作用主要是隔离后台返回数据库和前端数据差异的处理逻辑, 在这里可以编写相关的处理代码*     
+> *建议这样写, model的作用主要是隔离后台返回数据和前端数据差异的处理逻辑, 在这里可以编写相关的处理代码*     
 >>```js
 >> import Utils from 'common/utils';
 >> 
@@ -259,7 +259,7 @@
 >>```
 
 > **使用Service的例子(xxx.vue, 可拷贝修改使用):**  
-> **     
+>     
 
 >>```js
 >> import XxxService from 'service/xxx_service';
@@ -271,17 +271,21 @@
 >>          page: 1, 
 >>          count: 10, 
 >>          cammand: 'reset', /* 建议由参数列表传入 */ 
->>     }, /* 这个分页可以作为data里的内容 */
->>     // isSingleResult: true,
+>>     },
+>>     // singleResult: true,
 >>     // canNotFound: true,
 >>     // fromCache: true,
 >> }, {
->>      onSuccess: (xxxModels) => {
+>>      onSuccess: (xxxModels, xxxPModel, json) => {
 >>          // 对请求结果的数据进行操作
 >>      },
 >>      onFail: (exMsg, json) => {
 >>          // 对错误结果进行提示
 >>      },
+>>      onEnd: () => {
+>>          // 总是处理
+>>      },
+>>      // ... 其它回调请参考上文
 >> });
 >> if(! xxxModels) {
 >>      // 任何错误或者请求失败返回内容都是undefined
