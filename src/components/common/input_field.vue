@@ -4,8 +4,11 @@
             :class="{
                 'input-field__input--readonly':isReadOnly,
                 'input-field__input--optional':isOptional,
+                'input-field__input--disabled':isDisabled,
+                'input-field__input--multiple':isMultiple,
             }">
             <mu-text-field ref="input"
+                :class="{'picked':pickedOptionIds.length}"
                 v-model="inputValue"
                 v-bind="$attrs"
                 :placeholder="placeholder"
@@ -17,10 +20,25 @@
                 :disabled="isDisabled"
                 :readonly="isReadOnly"
                 :action-icon="isOptional?':iconfont icondown':''"
-                @click.native="showOptionPicker"
+                @click.native="showOptionPicker()"
                 @focus="inputFocused=true"
                 @blur="inputFocused=false"
                 @change="onInputChange">
+                <div v-if="isMultiple"
+                    v-show="pickedOptionIds.length"
+                    ref="multiBlock"
+                    class="input-field__input-multi-block">
+                    <mu-chip v-for="option in pickedOptions"
+                        :key="_toOptionId(option)"
+                        delete
+                        @delete="unpickOption(option)"
+                        @click="showOptionPicker()">
+                        <slot name="picked-option-chip"
+                            :option="option">
+                            {{_toOptionLabel(option)}}
+                        </slot>
+                    </mu-chip>
+                </div>
                 <mu-button slot="append"
                     icon
                     small
@@ -29,8 +47,7 @@
                         'visibility': !this.isReadOnly&&this.inputFocused?'':'hidden'
                     }"
                     @click.native="reset">
-                    <mu-icon 
-                        value=":iconfont iconclose">
+                    <mu-icon value=":iconfont iconclose">
                     </mu-icon>
                 </mu-button>
             </mu-text-field>
@@ -42,17 +59,26 @@
                 <mu-button
                     flat
                     color="secondary"
-                    @click="hideOptionPicker">
+                    @click="hideOptionPicker()">
                     取消
                 </mu-button>
-                <mu-button
-                    flat
-                    color="secondary"
-                    @click="cancelPicked">
-                    清除已选
-                </mu-button>
+                <div class="content__end">
+                    <mu-button
+                        flat
+                        color="secondary"
+                        @click="resetPicked()">
+                        {{isMultiple?'清空已选':'清除已选'}}
+                    </mu-button>
+                    <mu-button v-if="isMultiple"
+                        flat
+                        color="secondary"
+                        @click="hideOptionPicker()">
+                        确定
+                    </mu-button>
+                </div>
             </div>
-            <div class="input-field__options-search">
+            <div class="input-field__options-search"
+                v-show="optionSearchable">
                 <search-field v-model="optionSearchVal"
                     :placeholder="optionSearchPlaceholder"
                     small
@@ -64,7 +90,7 @@
                 v-show="expandingOption"
                 v-resize="caculateOptionSummaryCount">
                 <mu-button icon 
-                    @click="backToLastExpand">
+                    @click="backToLastExpand()">
                     <mu-icon value=":iconfont iconroundleft">
                     </mu-icon>
                 </mu-button>
@@ -79,16 +105,18 @@
                     <mu-list slot="content">
                         <mu-list-item button
                             v-for="option in optionExpandPath"
-                            :key="_toOptionLabel(option)"
+                            :key="_toOptionId(option)"
                             @click.native="backToExpand(option)">
-                            <mu-list-item-title>{{_toOptionLabel(option)}}</mu-list-item-title>
+                            <mu-list-item-title>
+                                {{_toOptionLabel(option)}}
+                            </mu-list-item-title>
                         </mu-list-item>
                     </mu-list>
                 </mu-menu>
                 <mu-breadcrumbs>
                     <mu-breadcrumbs-item 
                         v-for="option in optionExpandPathSummary" 
-                        :key="_toOptionLabel(option)"
+                        :key="_toOptionId(option)"
                         @click.native="backToExpand(option)">
                         {{_toOptionLabel(option)}}
                     </mu-breadcrumbs-item>
@@ -97,43 +125,54 @@
             <div class="input-field__options-list">
                 <mu-load-more :refreshing="isRefreshing"
                     :loading="isLoading"
-                    :load-end="optionLoadEnd"
+                    :load-end="isOptionLoadEnd"
                     @refresh="refreshOption"
                     @load="loadOption">
-                    <mu-list :value="_toOptionValue(pickedOption)">
+                    <mu-list :value="isMultiple?null:pickedOptionIds[0]">
                         <template v-for="option in displayingOptions">
                             <mu-list-item button
-                                :key="_toOptionLabel(option)"
+                                :key="_toOptionId(option)"
                                 :ripple="false"
-                                :value="_toOptionValue(option)">
+                                :value="_toOptionId(option)"
+                                @contextmenu.prevent.native="showOptionDetail(option)"
+                                @click="pickOption(option,true)">
+                                <mu-list-item-action
+                                    v-if="isMultiple">
+                                    <mu-checkbox v-model="pickedOptionIds"
+                                        :value="_toOptionId(option)"
+                                        :input-value="_toOptionId(option)"
+                                        :disabled="option.$disabled"
+                                        @click.stop>
+                                    </mu-checkbox>
+                                </mu-list-item-action>
                                 <mu-list-item-content
-                                    :class="{'disabled':option.$disabled}"
-                                    @click="pickOption(option)">
+                                    :class="{'disabled':option.$disabled}">
                                     <slot name="option-content"
                                         :option="option">
                                         {{_toOptionLabel(option)}}
                                     </slot>
                                 </mu-list-item-content>
                                 <mu-list-item-action
-                                    v-if="optionExpandable">
+                                    v-if="optionExpandable&&!option.$leaf">
                                     <mu-button icon
-                                        @click="expandOption(option)">
+                                        @click.stop="expandOption(option)">
                                         <mu-icon value=":iconfont iconroundright">
                                         </mu-icon>
                                     </mu-button>
                                 </mu-list-item-action>
                             </mu-list-item>
-                            <mu-divider :key="_toOptionLabel(option)" />
+                            <mu-divider :key="_toOptionId(option)" />
                         </template>
-                        <p class="text-center"
+                        <p style="padding-top:40px;"
+                            class="text-center"
                             v-if="isEmptyOptions"
                             v-show="!isLoading">
                             {{optionEmptyMsg}}
                         </p>
                         <p class="text-center"
-                            v-else-if="optionLoadEnd"
+                            v-else-if="isOptionLoadEnd"
                             v-show="!isLoading">
-                            {{loadEndMsg}}
+                            {{optionLoadEndMsg}}
                         </p>
                     </mu-list>
                 </mu-load-more>
@@ -143,6 +182,7 @@
 </template>
 <script>
     import Utils from 'common/utils';
+    import {confirm} from 'common/env';
     import searchField from 'components/common/search_field';
 
     export default {
@@ -178,10 +218,6 @@
                 type: String,
                 default: '输入内容格式有误!',
             },
-            loadEndMsg: {
-                type: String,
-                default: '没有更多了~',
-            },
             options: {
                 type: Array,
                 default: -1,
@@ -192,12 +228,39 @@
             },
             optionLabelKey: {
                 type: String,
+                default: 'name',
+            },
+            optionRefreshing: {
+                type: Boolean,
+                default: false,
+            },
+            optionLoading: {
+                type: Boolean,
+                default: false,
+            },
+            optionLoadEnd: {
+                type: Boolean,
+                default: false,
+            },
+            optionLoadEndMsg: {
+                type: String,
+                default: '没有更多了~',
             },
             optionIdKey: {
                 type: String,
+                default: 'id',
+            },
+            optionMultiple: {
+                type: Boolean,
+                defalult: false,
+            },
+            optionMultiPickClearMsg: {
+                type: String,
+                default: '将清空所有已选的内容，确定吗？',
             },
             optionEditable: {
                 type: Boolean,
+                defalult: false,
             },
             optionSearchable: {
                 type: Boolean,
@@ -211,11 +274,9 @@
                 type: String,
                 default: '请输入搜索内容',
             },
-            optionExpandMap: {
+            optionExpanding: {
                 type: Object,
-            },
-            optionExpandKey: {
-                type: String,
+                default: undefined,
             },
         },
         data() {
@@ -228,22 +289,27 @@
                 isPicking: false,
                 displayingOptions: '',
 
-                pickedOption: '',
+                pickedOptionIds: [], /* 可能为单选也可能为多选 */
                 optionIdMap: {},
                 optionLabelMap: {},
+                optionExpandingRoot: '',
                 optionExpandPath: [],
                 optionSummaryCount: 2,
                 expandPathMoreOpening: false,
 
                 optionSearchVal: '',
-                optionRefreshing: false,
-                optionLoading: false,
-                optionLoadEnd: false,
+
+                isOptionRefreshing: false,
+                isOptionLoading: false,
+                isOptionLoadEnd: false,
+
+                isHandlingOptionCheckBoxChange: false,
             };
         },
         computed: {
             placeholder() {
-                if(this.isEmptyOptions) {
+                if(! this.isMultiple 
+                    && this.isEmptyOptions) {
                     return this.optionEmptyMsg;
                 }
                 if(this.$attrs.placeholder) {
@@ -264,7 +330,13 @@
                 return this.readonly;
             },
             isDisabled() {
-                return this.disabled;
+                return this.disabled ? true : false;
+            },
+            isMultiple() {
+                if(! this.isOptional) {
+                    return false;
+                }
+                return this.optionMultiple;
             },
             isOptional() {
                 return this.options != -1 ? true : false;
@@ -273,10 +345,10 @@
                 return this.isOptional && this.displayingOptions !== '' && ! this.displayingOptions.length;
             },
             isLoading() {
-                return this.optionLoading || this.displayingOptions === '';
+                return this.isOptionLoading;
             },
             isRefreshing() {
-                return this.optionRefreshing;
+                return this.isOptionRefreshing || this.displayingOptions === '';
             },
             validateRules() {
                 if(! this.format) {
@@ -292,13 +364,19 @@
                 };
             },
             optionExpandable() {
-                return Utils.isObject(this.optionExpandMap); 
+                return this.optionExpanding !== undefined; 
             },
             expandingOption() {
                 if(! this.optionExpandPath.length) {
                     return;
                 }
                 return this.optionExpandPath[this.optionExpandPath.length - 1];
+            },
+            optionExpandRoot() {
+                if(! this.optionExpandingRoot) {
+                    return '';
+                }
+                return this.optionExpandingRoot;
             },
             optionExpandPathSummary() {
                 if(! this.optionExpandPath.length) {
@@ -315,21 +393,71 @@
             isOptionExpandPathOmitted() {
                 return this.optionExpandPath.length > this.optionSummaryCount;
             },
+            pickedOptions() {
+                if(! this.isMultiple) {
+                    return this._toOptionById(this.pickedOptionIds[0]);
+                }
+                const result = [];
+                for(let id of this.pickedOptionIds) {
+                    result.push(this._toOptionById(id));
+                }
+                return result;
+            },
         },
         watch: {
             'value': function(newValue) {
+                if(this.isMultiple) {
+                    this._mergePickedOptionIds(newValue);
+                    return;
+                }
                 this.inputValue = this._toInputValue(newValue);
             },
             'inputValue': function(newValue) {
+                if(this.isMultiple) {
+                    return;
+                }
                 if(newValue && ! this.validate(true)) {
                     this.$emit('input', '');
                     return;
                 }
-                const realVal = this._toRealValue(newValue, (Utils.isObject(this.value) || this.value === ''));
+                const realVal = this._toRealValue(newValue, 
+                    (Utils.isObject(this.value) || this.value === ''));
                 this.$emit('input', realVal);
-                if(this.isOptional && ! this.pickedOption
-                    && this.options.indexOf(realVal) != -1) {
+                if(this.isOptional) {
                     this.pickOption(realVal);
+                }
+            },
+            'options': function(newValue) {
+                this._checkOptions();
+                this._changeDisplayingOptions(newValue);
+                if(! this.isMultiple 
+                    && this.inputValue 
+                    && ! this.pickedOptionIds.length) {
+                    this.pickOption(this._toRealValue(this.inputValue,
+                        (Utils.isObject(this.value) || this.value === '')));
+                }
+            },
+            'optionRefreshing': function(newVal) {
+                if(newVal) {
+                    this.isOptionRefreshing = true;
+                    return;
+                }
+                this.isOptionRefreshing = false;
+                this.isOptionLoading = false;
+            },
+            'optionLoading': function(newVal) {
+                if(newVal) {
+                    this.isOptionLoading = true;
+                    return;
+                }
+                this.isOptionRefreshing = false;
+                this.isOptionLoading = false;
+            },
+            'optionLoadEnd': function(newVal) {
+                this.isOptionLoadEnd = newVal;
+                if(newVal) {
+                    this.isOptionRefreshing = false;
+                    this.isOptionLoading = false;
                 }
             },
             'picking': function(newVal) {
@@ -341,16 +469,16 @@
                 }
                 this.$emit('update:picking', newVal);
             },
-            'options': function(newValue, oldValue) {
-                if(this.expandingOption) {
+            'pickedOptions': function(newVal, oldVal) {
+                if(! this.isMultiple) {
                     return;
                 }
-                this._changeDisplayingOptions(newValue);
-                if(this.inputValue && ! this.pickedOption) {
-                    const option = this._toRealValue(this.inputValue, (Utils.isObject(this.value) || this.value === ''));
-                    if(this.options.indexOf(option) != -1) {
-                        this.pickOption(option);
-                    }
+                this.inputValue = '';
+                this.$emit('input', newVal);
+                if(newVal.length >= oldVal.length) {
+                    this.$nextTick(() => {
+                        this.focusMultiBlockScroll();
+                    });
                 }
             },
             'optionSearchValue': function(newVal) {
@@ -359,19 +487,25 @@
             'optionSearchVal': function(newVal) {
                 this.$emit('update:optionSearchValue', newVal);
             },
+            'optionExpanding': function(newVal) {
+                if(! this.optionExpandingRoot && newVal) {
+                    this.optionExpandingRoot = newVal;
+                }
+                this.expandOption(newVal);
+            },
         },
         components: {
             searchField
         },
         methods: {
-            _initOptionMap(options) {
+            _mergeOptionMap(options) {
                 if(! options || ! options.length) {
                     return;
                 }
                 for(let option of options) {
                     // ??? idkey填错也可能重复!!!
                     this.$set(this.optionIdMap, 
-                        this._toOptionValue(option),
+                        this._toOptionId(option),
                         option);
                     // ??? 名称可能重复!!!
                     this.$set(this.optionLabelMap, 
@@ -390,6 +524,18 @@
                 }
                 Object.assign(this.optionIdMap, optionIdMap);
             },
+            _checkOptions() {
+                if(! this._setEmptyOptionTip()) {
+                    if(Utils.isObject(this.options[0])) {
+                        if(! this.optionIdKey) {
+                            throw new Error('对象Option必须至少指定option-id-key');
+                        }
+                        if(! this.optionLabelKey) {
+                            this.optionLabelKey = this.optionIdKey;
+                        }
+                    }
+                }
+            },
             _setEmptyOptionTip() {
                 if(! this.isEmptyOptions) {
                     return false;
@@ -405,7 +551,7 @@
                     let option, extractFn;
                     if(this._toOptionById(inputValue)) {
                         option = this._toOptionById(inputValue);
-                        extractFn = this._toOptionValue;
+                        extractFn = this._toOptionId;
                     } else {
                         option = this._toOptionByLabel(inputValue);
                         extractFn = this._toOptionLabel;
@@ -422,8 +568,8 @@
             _toInputValue(realValue) {
                 if(this.isOptional) {
                     if(Utils.isObject(realValue)) {
-                        if(! this._toOptionById(this._toOptionValue(realValue))) {
-                            this._initOptionMap([realValue]);
+                        if(! this._toOptionById(this._toOptionId(realValue))) {
+                            this._mergeOptionMap([realValue]);
                         }
                         return this._toOptionLabel(realValue) || '';
                     }
@@ -445,7 +591,7 @@
                 }
                 return option; 
             },
-            _toOptionValue(option) {
+            _toOptionId(option) {
                 if(Utils.isObject(option)) {
                     return option[this.optionIdKey];
                 }
@@ -462,11 +608,35 @@
             },
             _changeDisplayingOptions(options) {
                 this._setDisplayingOptions(options);
-                this._initOptionMap(this.displayingOptions);
+                this._mergeOptionMap(this.displayingOptions);
+            },
+            _mergePickedOptionIds(options) {
+                if(! options) {
+                    options = [];
+                }
+                let isChanged = false;
+                if(options.length == this.pickedOptionIds.length) {
+                    for(let item of options) {
+                        if(this.pickedOptionIds.indexOf(this._toOptionId(item)) == -1) {
+                            isChanged = true;
+                            break;
+                        }
+                    }
+                } else {
+                    isChanged = true;
+                }
+                if(isChanged) {
+                    const newPickedOptionIds = [];
+                    for(let item of options) {
+                        newPickedOptionIds.push(this._toOptionId(item));
+                    }
+                    this.pickedOptionIds = newPickedOptionIds;
+                    this._mergeOptionMap(options);
+                }
             },
             onInputChange() {
-                if(this.isOptional) {
-                    return;
+                if(this.isOptional) { /* otional不能通过@change来, 会重复 */
+                    return false;
                 }
                 this.$emit('change', this.inputValue);
             },
@@ -508,8 +678,148 @@
                 this.$refs.input.focus();
                 this.isPicking = true;
             },
-            hideOptionPicker() {
-                this.isPicking = false;
+            refreshOption() {
+                if(this.isOptionRefreshing) {
+                    return;
+                }
+                this.isOptionRefreshing = true;
+                this.$emit('option-refresh', this.expandingOption);
+                this.setOptionLoadingMinTimer();
+            },
+            loadOption() {
+                if(this.isOptionLoading) {
+                    return;
+                }
+                if(this.isOptionLoadEnd) {
+                    return;
+                }
+                this.isOptionLoading = true;
+                this.$emit('option-load-more', this.expandingOption);
+                this.setOptionLoadingMinTimer();
+            },
+            setOptionLoadingMinTimer() {
+                // 在指定超短时间内, 没有进行加载且已加载全部初始化为true
+                // 则直接自动设置为全部加载结束
+                setTimeout(() => {
+                    if(! this.optionLoading) {
+                        this.isOptionRefreshing = false;
+                        this.isOptionLoading = false;
+                        if(this.optionLoadEnd) {
+                            this.isOptionLoadEnd = true;
+                        }
+                    }
+                }, 0);
+            },
+            searchOption(searchEndFn) {
+                this.optionExpandPath = [];
+                this.isOptionLoadEnd = false;
+                this._setDisplayingOptions('');
+                
+                this.isOptionLoading = true;
+                this.$emit('update:optionSearchValue', this.optionSearchVal);
+                this.$emit('option-search', this.expandingOption);
+                this.setOptionLoadingMinTimer();
+            },
+            focusMultiBlockScroll() {
+                if(this.$refs && this.$refs.multiBlock) {
+                    this.$refs.multiBlock.scrollTop = this.$refs.multiBlock.scrollHeight;
+                }
+            },
+            pickOption(option, isManual) {
+                if(option && option.$disabled) {
+                    this.$emit('click-disabled-option', option);
+                    return;
+                }
+                const optionId = this._toOptionId(option);
+                if(this.isMultiple) {
+                    if(this.pickedOptionIds.indexOf(optionId) != -1) {
+                        if(isManual) {
+                            this.unpickOption(option);
+                        }
+                        return;
+                    }
+                    this.pickedOptionIds.push(optionId);
+                } else {
+                    const lastPicked = this.pickedOptionIds[0];
+                    this.pickedOptionIds[0] = optionId;
+                    this.inputValue = this._toInputValue(option);
+                    this.hideOptionPicker();
+                    if(lastPicked == optionId) {
+                        return;
+                    }
+                }
+                this.$nextTick(() => {
+                    this.$emit('change', option, this.pickedOptions);
+                });
+            },
+            showOptionDetail(option) {
+                this.$emit('option-contextmenu', option);
+            },
+            unpickOption(option) {
+                if(! this.isMultiple || ! option) {
+                    return;
+                }
+                const optionId = this._toOptionId(option);
+                const index = this.pickedOptionIds.indexOf(optionId);
+                if(index == -1) {
+                    return;
+                }
+                this.pickedOptionIds.splice(index, 1);
+                this.$nextTick(() => {
+                    this.$emit('change', option, this.pickedOptions);
+                });
+            },
+            resetPicked(isSkipConfirm) {
+                if(! this.pickedOptionIds) {
+                    return;
+                }
+                if(this.isMultiple) {
+                    if(! isSkipConfirm) {
+                        if(! this.pickedOptionIds.length) {
+                            return;
+                        }
+                        confirm(this.optionMultiPickClearMsg, '警告', (result) => {
+                            if(result.result) {
+                                this.resetPicked(true);
+                                return;
+                            }
+                        });
+                        return;
+                    }
+                }
+                this.pickedOptionIds = [];
+                this.inputValue = '';
+                this.hideOptionPicker();
+            },
+            expandOption(parentOption) {
+                if(! parentOption) {
+                    parentOption = this.optionExpandRoot;
+                }
+                if(parentOption.$leaf) {
+                    this.$emit('expand-leaf-option', parentOption);
+                    return;
+                }
+                this.expandPathMoreOpening = false;
+                this.isOptionLoadEnd = false;
+                if(parentOption !== this.optionExpandRoot
+                    && this.optionExpandPath.indexOf(parentOption) == -1) {
+                    this.optionExpandPath.push(parentOption);
+                }
+                this.$emit('update:option-expanding', parentOption);
+                this.$emit('option-expand', parentOption);
+            },
+            backToLastExpand() {
+                this.optionExpandPath.pop()
+                this.expandOption(this.expandingOption);
+            },
+            backToExpand(option) {
+                const pathIndex = this.optionExpandPath.indexOf(option);
+                if(pathIndex == -1) {
+                    return;
+                }
+                this.optionExpandPath.splice(pathIndex + 1, 
+                    this.optionExpandPath.length);
+                this.expandOption(option);
             },
             caculateOptionSummaryCount() {
                 let result = Math.ceil(this.$el.clientWidth / 200);
@@ -518,140 +828,12 @@
                 }
                 this.optionSummaryCount = result;
             },
-            pickOption(option) {
-                if(! option || option.$disabled) {
-                    this.$emit('click-disabled-option', option);
-                    return;
-                }
-                this.pickedOption = option;
-                this.inputValue = this._toInputValue(this.pickedOption);
-                this.hideOptionPicker();
-                this.$nextTick(() => {
-                    this.$emit('option-picked', option);
-                });
-            },
-            getExpandObj(parentOption) {
-                return this.optionExpandMap[this._toOptionValue(parentOption)];
-            },
-            getExpandObjOptions(expandObj) {
-                if(! this.optionExpandKey && Utils.isArray(expandObj)) {
-                    return expandObj || '';
-                }
-                return (expandObj && expandObj[this.optionExpandKey]) || '';
-            },
-            expandOption(parentOption) {
-                this.expandPathMoreOpening = false;
-                this.optionLoadEnd = false;
-
-                let obj = this.getExpandObj(parentOption);
-                if(this.optionExpandPath.indexOf(parentOption) == -1) {
-                    this.optionExpandPath.push(parentOption);
-                }
-                this._setDisplayingOptions(this.getExpandObjOptions(obj));
-                if(obj) {
-                    return
-                }
-                this.$emit('option-expand', (isLoadEnd) => {
-                    this.optionRefreshing = false;
-                    this.optionLoading = false;
-                    this.optionLoadEnd = isLoadEnd;
-                }, parentOption);
-                if(! (obj = this.getExpandObj(parentOption))) {
-                    throw new Error('请在option-expand回调中生成ExpandOption的空间');
-                }
-                const key = this._toOptionValue(parentOption);
-                if(this.optionExpandKey) {
-                    this.$set(obj, this.optionExpandKey, this.getExpandObjOptions(obj));
-                } else {
-                    this.$set(this.optionExpandMap, key, obj);
-                }
-                this.$watch(() => {
-                    if(this.optionExpandKey) {
-                        return this.optionExpandMap[key][this.optionExpandKey];
-                    }
-                    return this.optionExpandMap[key];
-                }, (newOptions, oldOptions) => {
-                    if(newOptions === oldOptions) {
-                        return;
-                    }
-                    this._changeDisplayingOptions(newOptions);
-                    this.optionRefreshing = false;
-                    this.optionLoading = false;
-                });
-            },
-            backToLastExpand() {
-                this.optionExpandPath.pop()
-                if(! this.expandingOption) {
-                    this._changeDisplayingOptions(this.options);
-                    return;
-                }
-                this.expandOption(this.expandingOption);
-            },
-            backToExpand(option) {
-                const pathIndex = this.optionExpandPath.indexOf(option);
-                if(pathIndex == -1) {
-                    return;
-                }
-                this.optionExpandPath.splice(pathIndex + 1, this.optionExpandPath.length);
-                this.expandOption(option);
-            },
-            refreshOption() {
-                if(this.optionRefreshing) {
-                    return;
-                }
-                this.optionRefreshing = true;
-                this.$emit('option-refresh', (isLoadEnd) => {
-                    this.optionRefreshing = false;
-                    this.optionLoadEnd = isLoadEnd;
-                }, this.expandingOption);
-            },
-            loadOption() {
-                if(this.optionLoading) {
-                    return;
-                }
-                if(this.optionLoadEnd) {
-                    return;
-                }
-                this.optionLoading = true;
-                this.$emit('option-load-more', (isLoadEnd) => {
-                    this.optionLoading = false;
-                    this.optionLoadEnd = isLoadEnd;
-                }, this.expandingOption);
-            },
-            searchOption(searchEndFn) {
-                this.optionExpandPath = [];
-                this.optionLoadEnd = false;
-                this._setDisplayingOptions('');
-                
-                this.optionLoading = true;
-                this.$emit('update:optionSearchValue', this.optionSearchVal);
-                this.$emit('option-search', (isLoadEnd) => {
-                    searchEndFn && searchEndFn();
-                    this.optionLoading = false;
-                    this.optionLoadEnd = isLoadEnd;
-                }, this.expandingOption);
-            },
-            cancelPicked() {
-                if(! this.pickedOption) {
-                    return;
-                }
-                this.pickedOption = '';
-                this.inputValue = '';
-                this.hideOptionPicker();
+            hideOptionPicker() {
+                this.isPicking = false;
             },
         },
         mounted() {
-            if(! this._setEmptyOptionTip()) {
-                if(Utils.isObject(this.options[0])) {
-                    if(! this.optionIdKey) {
-                        throw new Error('对象Option必须至少指定option-value-key');
-                    }
-                    if(! this.optionLabelKey) {
-                        this.optionLabelKey = this.optionIdKey;
-                    }
-                }
-                this._changeDisplayingOptions(this.options);
-            }
+            this.displayingOptions = this.options;
             this.inputValue = this._toInputValue(this.value);
         },
     }
@@ -704,10 +886,44 @@
                     margin-right: 2rem;
                 }
             }
+            &.input-field__input--disabled {
+                .mu-input-action-icon, input, textarea {
+                    color: #666;
+                    cursor: not-allowed;
+                }
+            }
+            &.input-field__input--multiple {
+                .mu-input.picked>.mu-input-content>input,
+                .mu-input.picked>.mu-input-content>textarea,
+                .mu-input.picked>.mu-input-content>.mu-text-field-multiline {
+                    width: 0;
+                }
+                .mu-input-content>input,
+                .mu-input-content>textarea,
+                .mu-input-content>.mu-text-field-multiline {
+                    min-height: 44px;
+                }
+            }
+            .input-field__input-multi-block {
+                width: 100%;
+                min-height: 44px;
+                height: 100%;
+                max-height: 648px;
+                align-self: start;
+                overflow-y: auto;
+                text-align: left;
+                padding-bottom: 8px;
+                padding-right: 8px;
+                .mu-chip {
+                    margin-top: 4px;
+                    margin-left: 4px;
+                }
+            }
         }
     }
     .input-field__options {
         width: 100%;
+        min-height: 360px;
         .iconfont {
             font-size: 24px;
             color: #999;
@@ -739,8 +955,10 @@
             border-top: 1px solid $border;
             -webkit-overflow-scrolling: touch;
             .mu-list {
+                min-height: 120px;
                 padding-top: 0;
                 font-size: 16px;
+                overflow: hidden;
             }
         }
     }

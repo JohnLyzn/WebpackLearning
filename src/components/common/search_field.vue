@@ -85,7 +85,6 @@
             },
             reset() {
                 this.searchValue = '';
-                this.search();
             },
         },
         mounted() {
@@ -106,9 +105,10 @@
     }
     .search-field--small {
         height: 36px;
-        min-height: 36px;
+        padding: 0;
         .mu-input-content {
-            height: 20px;
+            padding: 0 4px 0 16px;
+            line-height: 36px;
         }
         .mu-button {
             width: 36px;

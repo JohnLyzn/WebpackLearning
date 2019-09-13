@@ -37,7 +37,7 @@ html,body{
 p {
     @include fsc(14px,#888);
     padding: .5rem;
-    line-height: 18px;
+    line-height: 24px;
 }
 a {
     cursor: pointer;
@@ -104,6 +104,13 @@ a {
     &:hover {
         text-decoration: underline;
     }
+}
+.tip {
+    text-align: center;
+    line-height: 16px;
+    font-size: 14px;
+    color: #999;
+    padding: 8px 0;
 }
 .scrollable {
     overflow: auto;
@@ -273,10 +280,6 @@ a {
             background: rgba($border, .5);
         }
     }
-}
-/* 加载中容器 */
-.loading {
-    position: relative;
 }
 /* 动画样式 */
 @keyframes backOpacity{

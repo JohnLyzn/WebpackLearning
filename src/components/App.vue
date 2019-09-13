@@ -129,6 +129,14 @@
 	Vue.use(Tooltip);
 	import 'muse-ui/lib/styles/theme.less';
 
+	// import 'muse-ui-loading/dist/muse-ui-loading.css';
+	// import Loading from 'muse-ui-loading';
+	// Vue.use(Loading);
+
+	// import 'muse-ui-progress/dist/muse-ui-progress.css';
+	// import NProgress from 'muse-ui-progress';
+	// Vue.use(NProgress);
+
 	import 'style/muse-ui-variables';
 	import 'style/iconfont/iconfont.css';
 	

@@ -75,8 +75,38 @@ export const search = (objs, searchKey, searchValue, strict) => {
 	return results;
 };
 
+import Utils from 'common/utils';
+
+/**
+ * 处理包括文件的远程Ajax请求参数
+ * @param {Object} option 远程请求参数
+ */
+const formatPOSTAjaxParams = (option) => {
+	if(! option.data) {
+		return;
+	}
+	const ajaxParams = option.data;
+	const headers = option.headers = option.headers || {};
+	const formData = new FormData();
+	for(let key in ajaxParams) {
+		if(! ajaxParams.hasOwnProperty(key)) {
+			continue;
+		}
+		if(Utils.isInstance(ajaxParams[key], File)) {
+			headers['Content-Type'] = 'multipart/form-data';
+		}
+		formData.append(key, ajaxParams[key]);
+	}
+	if(headers['Content-Type'] != 'multipart/form-data') {
+		headers['Content-Type'] = 'application/x-www-form-urlencoded'
+		return qs.stringify(ajaxParams);
+	}
+	return formData;
+};
+
 import axios from 'axios';
 import qs from 'qs';
+
 /**
  * 远程Ajax请求
  * @param {Object} option 远程请求参数
@@ -84,19 +114,9 @@ import qs from 'qs';
 export const ajax = async (option) => {
 	let response;
 	if(option.type && option.type.toUpperCase() == 'POST') {
-		let formData = new FormData();
-		if(option.data) {
-			for(let key in option.data) {
-				if(! option.data.hasOwnProperty(key)) {
-					continue;
-				}
-				formData.append(key, option.data[key]);
-			}
-		}
-		response = await axios.post(option.url, formData, {
-			headers: {
-				'Content-Type': 'multipart/form-data'
-			}
+		let data = formatPOSTAjaxParams(option);
+		response = await axios.post(option.url, data, {
+			headers: option.headers,
 		}).catch(err => {
 			if (typeof option.error == 'function') {
 				option.error(err);
@@ -107,6 +127,7 @@ export const ajax = async (option) => {
 			url: option.url,
 			params: option.data,
 			method: option.type,
+			headers: option.headers,
 			paramsSerializer: (params) => {
 				return qs.stringify(params, { arrayFormat: 'brackets' });
 			}
@@ -295,7 +316,18 @@ export const getElementComputedStyle = (el, attr) => {
  * 获取DOM元素的盒子信息
  */
 export const getElementRect = (el) => {
-	if(! el || ! el.getClientRects) {
+	if(! el) {
+		return null;
+	}
+	if(el === window || el === document) {
+		return {
+			top: 0,
+			bottom: window.innerHeight,
+			left: 0,
+			right: window.innerWidth,
+		};
+	}
+	if(! el.getClientRects) {
 		return null;
 	}
 	return el.getClientRects()[0];

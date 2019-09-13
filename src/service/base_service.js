@@ -171,7 +171,7 @@ export default class BaseService {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
 				}
-				return;
+				return json;
 			}
 			return detailsHandleResult;
 		};
@@ -207,7 +207,7 @@ export default class BaseService {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
 				}
-				return;
+				return json;
 			}
 			return handleDeleteResult;
 		};
@@ -233,7 +233,7 @@ export default class BaseService {
 				if(Utils.isFunc(callbacks.onSuccess)) {
 					callbacks.onSuccess(null, null, json);
 				}
-				return;
+				return json;
 			}
 			return detailsHandleResult;
 		};
@@ -271,8 +271,18 @@ export default class BaseService {
 					}
 				}
 			}
-			return singleResult ? cacheable.objs[0] : cacheable.objs;
+			if(singleResult) {
+				if(! cacheable.objs[0] && canNotFound) {
+					return undefined;
+				}
+				return cacheable.objs[0];
+			}
+			if(cacheable.objs) {
+				return cacheable.objs;
+			}
+			return json;
 		};
+		
 		// 默认不从缓存查找, 外部指定fromCache才从缓存中查找
 		if(params.fromCache) {
 			if(! params.searches) {
@@ -604,6 +614,10 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 			delete ajaxParams[ajaxParamKey];
 			continue;
 		}
+		// 略过文件类型
+		if(Utils.isInstance(ajaxParamVal, File)) {
+			continue;
+		}
 		// 格式化对象为json字符串
 		if(Utils.isObject(ajaxParamVal) || Utils.isArray(ajaxParamVal)) {
 			ajaxParams[ajaxParamKey] = JSON.stringify(ajaxParamVal);
@@ -704,7 +718,6 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	}
 	return sucessHandleResult;
 };
-
 
 class Model {
     constructor(row, isFromCache, placehoders) {
@@ -812,7 +825,7 @@ const _removeInCacheMap = (cacheKey, id) => {
 
 /**
  * 在对象列表中搜索符合目标条件(可能多个, 全OR或全AND连接)的对象
- * @param {Object List} searchObjs 缓存名称
+ * @param {Object List} searchObjs 缓存对象列表
  * @param {Object List} searches 搜索内容
  */
 const _search = (searchObjs, searches, strict) => {
@@ -924,6 +937,30 @@ const _handleDefaultErrorCallbacks = (callbacks) => {
 };
 
 /**
+ * 私有: 对本地缓存的对象进行分页切割
+ */
+const _setCachePagination = (objs, pagination, callbacks) => {
+	if(objs.length == 0) {
+		return objs;
+	}
+	if(! pagination.page || ! pagination.count) {
+		return objs;
+	}
+	
+	pagination.fetchedTotal = objs.length;
+	_setPagination(pagination, null, callbacks);
+	
+	let start = (pagination.page - 1) * pagination.count; /* 缓存分页忽略offset */
+	let end = start + pagination.count;
+	let result = objs.slice(start, end);
+	if(result.length == 0) {
+		pagination.cacheMissed = true;
+		return null;
+	} /* 即使不满足count的数量也返回 */
+	return result;
+};
+
+/**
  * 私有: 设置分页的总数
  */
 const _setPagination = (pagination, ajaxParams, callbacks) => {
@@ -941,6 +978,10 @@ const _setPagination = (pagination, ajaxParams, callbacks) => {
 	switch(command) {
 	case 'next':
 		if(pagination.$pagingEnd) {
+			// 最后一页了, 调用基本回调
+			if(callbacks && Utils.isFunc(callbacks.onLastPage)) {
+				callbacks.onLastPage(pagination);
+			}
 			return false;
 		}
 		if(pagination.fetchedTotal) {
@@ -1049,9 +1090,12 @@ const _getObjFromJsonByKey = (json, key) => {
 /**
  * 私有: 获取请求结果中的对象
  */
-const _getObjFromJson = (json, keys) => {
+const _getObjFromJson = (json, keys, defaultVal) => {
 	if(! json || ! keys) {
 		return;
+	}
+	if(! Utils.isObject(json)) {
+		return defaultVal;
 	}
 	if(Utils.isString(keys)) {
 		let result = _getObjFromJsonByKey(json, keys);
@@ -1074,7 +1118,7 @@ const _getObjFromJson = (json, keys) => {
  * 私有: 获取请求结果中的处理结果标志
  */
 const _getResultFromJson = (json, key = 'result') => {
-	return _getObjFromJson(json, key);
+	return _getObjFromJson(json, key, false);
 };
 
 /**
@@ -1103,30 +1147,6 @@ const _getErrorMsgFromJson = (json, key = ['msg', 'message']) => {
  */
 const _getErrorTypeFromJson = (json, key = 'errorType') => {
 	return _getObjFromJson(json, key);
-};
-
-/**
- * 私有: 对本地缓存的对象进行分页切割
- */
-const _setCachePagination = (objs, pagination, callbacks) => {
-	if(objs.length == 0) {
-		return objs;
-	}
-	if(! pagination.page || ! pagination.count) {
-		return objs;
-	}
-	
-	pagination.fetchedTotal = objs.length;
-	_setPagination(pagination, null, callbacks);
-	
-	let start = (pagination.page - 1) * pagination.count; /* 缓存分页忽略offset */
-	let end = start + pagination.count;
-	let result = objs.slice(start, end);
-	if(result.length == 0) {
-		pagination.cacheMissed = true;
-		return null;
-	} /* 即使不满足count的数量也返回 */
-	return result;
 };
 
 /**
