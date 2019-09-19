@@ -365,3 +365,95 @@ export const pageBack = () => {
 	// 如果是APP调用api
 	require('plugin/API').quitToolPageAPI();
 }
+
+/**
+ * 
+ */
+const genterateDefaultQrCodeDom = () => {
+	const dom = document.querySelector('.qrcode-fixed-container>.qrcode');
+	if(dom) {
+		dom.parentElement.style.display = 'flex';
+		if(dom.querySelector('img')) {
+			dom.removeChild(dom.querySelector('img'));
+		}
+		if(dom.querySelector('canvas')) {
+			dom.removeChild(dom.querySelector('canvas'));
+		}
+		return dom;
+	}
+	// 容器
+	const containerDom = document.createElement('div');
+	const classAttr1 = document.createAttribute('class');
+	classAttr1.value = 'qrcode-fixed-container';
+	containerDom.setAttributeNode(classAttr1);
+	// 二维码
+	const qrCodeDom = document.createElement('div');
+	const classAttr2 = document.createAttribute('class');
+	classAttr2.value = 'qrcode';
+	qrCodeDom.setAttributeNode(classAttr2);
+	containerDom.appendChild(qrCodeDom);
+	// 关闭按钮
+	const closeBtnDom = document.createElement('div');
+	const classAttr3 = document.createAttribute('class');
+	classAttr3.value = 'closebtn';
+	closeBtnDom.setAttributeNode(classAttr3);
+	qrCodeDom.appendChild(closeBtnDom);
+	// 关闭事件
+	closeBtnDom.addEventListener('click', () => {
+		containerDom.style.display = 'none';
+	});
+	// 追加到body下
+	document.querySelector('body').appendChild(containerDom);
+	return qrCodeDom;
+}
+
+/**
+ * 生成微信分享请求URL
+ */
+const generateShareWxUrl = (params) => {
+	if(! window.g_wxUrl) {
+		return 'https://wx.wetoband.com/gotoShare?' + Utils.toQueryStr(params);
+	}
+	return window.g_wxUrl + '/gotoShare?' + Utils.toQueryStr(params);
+};
+
+/**
+ * 处理分享到微信
+ */
+export const shareToWx = (config) => {
+	if(g_clientType < 200) { /* PC */
+		if(! config.dom) {
+			config.dom = genterateDefaultQrCodeDom();
+		}
+		const QRCode = require('qrcodejs2');
+		new QRCode(config.dom, {
+			text: generateShareWxUrl({
+				shareType: 'href',
+				url: encodeURIComponent(config.url),
+				title: config.title,
+				desc: config.content,
+			}),
+			width: config.width || 170,
+			height: config.height || 170,
+			colorDark: config.color || '#333333', //二维码颜色
+			colorLight: config.bgColor || '#ffffff', //二维码背景色
+			correctLevel: QRCode.CorrectLevel.L //容错率，L/M/H
+		});
+		return;
+	}
+	if(g_clientType < 300) { /* APP */
+		require('plugin/API').callAppAPI('shareToWX', {
+			url: config.url,
+			tiltle: config.title,
+			content: config.content,
+		});
+		return;
+	}
+	/* wx */
+	window.open(generateWxUrl({
+		shareType: 'href',
+		url: encodeURIComponent(config.url),
+		title: config.title,
+		desc: config.content,
+	}));
+}

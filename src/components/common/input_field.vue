@@ -475,6 +475,7 @@
                 }
                 this.inputValue = '';
                 this.$emit('input', newVal);
+                this.$emit('change', newVal);
                 if(newVal.length >= oldVal.length) {
                     this.$nextTick(() => {
                         this.focusMultiBlockScroll();
@@ -722,7 +723,8 @@
             },
             focusMultiBlockScroll() {
                 if(this.$refs && this.$refs.multiBlock) {
-                    this.$refs.multiBlock.scrollTop = this.$refs.multiBlock.scrollHeight;
+                    this.$refs.multiBlock.scrollTop 
+                        = this.$refs.multiBlock.scrollHeight;
                 }
             },
             pickOption(option, isManual) {
@@ -748,9 +750,6 @@
                         return;
                     }
                 }
-                this.$nextTick(() => {
-                    this.$emit('change', option, this.pickedOptions);
-                });
             },
             showOptionDetail(option) {
                 this.$emit('option-contextmenu', option);
@@ -765,9 +764,6 @@
                     return;
                 }
                 this.pickedOptionIds.splice(index, 1);
-                this.$nextTick(() => {
-                    this.$emit('change', option, this.pickedOptions);
-                });
             },
             resetPicked(isSkipConfirm) {
                 if(! this.pickedOptionIds) {

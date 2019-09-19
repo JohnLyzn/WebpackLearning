@@ -167,23 +167,33 @@
 	}
 	.main-container {
 		width: 100%;
+		max-width: 100vw;
 		min-height: 100vh;
 		position: relative;
 		margin: 0 auto;
 		.main-header {
 			width: 100%;
+			max-width: 100vw;
 			height: 64px;
-			margin: 0 auto;
-			position: fixed;
+			&.fixed {
+				position: fixed;
+			}
 		}
 		.main-body-wrapper {
 			width: 100%;
+			max-width: 100vw;
 			.main-body {
 				width: 100%;
+				max-width: 100vw;
+				position: relative;
+				&.full-height {
+					height: 100%;
+					min-height: 100vh;
+				}
 			}
 		}
-		.main-header~.main-body-wrapper {
-			padding-top: 80px;
+		.main-header.fixed~.main-body {
+			padding-top: 72px;
 		}
 	}
 </style>

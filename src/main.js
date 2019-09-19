@@ -65,12 +65,12 @@ new Vue({
 		} else if(/^\d+$/.test(runToolParam)) {
 
 		}
+		/* 路由控制 */
+		// this.$router.push({ path: '' });//跳转到该路由
+		// this.$router.go(-1);//后退
 		/* 获取基础信息 */
 		// const config = await getConfigs();
 		// window.g_currentUserId = config.userID;
 		// this.BIND_CURRENT(config);
-		/* 路由控制 */
-		// this.$router.push({ path: '' });//跳转到该路由
-		// this.$router.go(-1);//后退
 	},
 }).$mount('#app');

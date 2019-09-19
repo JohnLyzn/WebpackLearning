@@ -1,1 +1,10 @@
 @import './mixin';
+
+
+/* 加载中容器 */
+.loading {
+    position: relative;
+    &>.mu-loading-wrap {
+        z-index: inherit;
+    }
+}

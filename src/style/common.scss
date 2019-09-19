@@ -292,3 +292,67 @@ a {
 .animation_opactiy{
     animation: backOpacity 2s ease-in-out infinite;
 }
+/* 带遮罩的全局图层 */
+.qrcode-fixed-container {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: rgba(0, 0, 0, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999999;
+    .qrcode {
+        min-width: 170px;
+        min-height: 170px;
+        position: relative;
+        border: 1px solid white;
+        background: rgba(255,255,255,.3);
+        &::before {
+            margin-top: 40%;
+            text-align: center;
+            content: '正在生成...';
+            color: white;
+            font-size: 16px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+        }
+        &::after {
+            text-align: center;
+            content: '打开微信扫一扫';
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -24px;
+        }
+        .closebtn {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+            line-height: 30px;
+            text-align: center;
+            top: -40px;
+            right: -40px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, .5);
+            cursor: pointer;
+            &::before {
+                color: white;
+                content: 'x';
+            }
+            &:hover {
+                background: rgba(0, 0, 0, .8);
+            }
+        }
+    }
+}
