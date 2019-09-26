@@ -220,7 +220,13 @@
 >>> `subObjIdCacheKey`:对象在父对象中的键(单个)   
 >>> `subObjIdsCacheKey`:对象在父对象中的键(多个)   
 >>> `subObjType`:子对象类型, 同`objType`   
->>> `model`: 在未明确传入`objType`指定模型的情况下可以通过此参数指定`id`和`name`的信息源. {idKey,nameKey}    
+>>> `model`: 在未明确传入`objType`指定模型的情况下可以通过此参数指定解析数据为模型数据的映射关系的信息源, 属性名称后加Key即可. 例如:{idKey:'objID',nameKey:'objName'} => {id: 源数据的ObjID, name: 源数据的objName}    
+>>> `tag`: 指定当前请求的标记, 一些地方可能用到, 如: 使用默认模型缓存时分池的名称    
+>>> `resultPath`: 从请求结果获取处理结果标志使用的path, 默认为result    
+>>> `rowsPath`: 从请求结果获取数据集使用的path, 默认为rows    
+>>> `totalPath`: 从请求结果获取数据总数使用的path, 默认为total    
+>>> `errorMsgPath`: 从请求结果获取错误信息使用的path, 默认为errorMsg    
+>>> `errorTypePath`: 从请求结果获取错误类型使用的path, 默认为errorType    
 >>> `singleResult`:只返回单个结果(默认都是列表).   
 >>> `canNotFound`:可以没有返回结果(这样没有结果时不会进行`onFail`)   
 >>> `cacheSearches`:进行缓存搜索, 和`params`中使用该参数的区别是: 这里定义了的话则总是这样查询缓存.   

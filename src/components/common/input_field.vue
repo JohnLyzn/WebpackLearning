@@ -293,6 +293,7 @@
                 optionIdMap: {},
                 optionLabelMap: {},
                 optionExpandingRoot: '',
+                optionLastExpanding: '',
                 optionExpandPath: [],
                 optionSummaryCount: 2,
                 expandPathMoreOpening: false,
@@ -491,6 +492,9 @@
             'optionExpanding': function(newVal) {
                 if(! this.optionExpandingRoot && newVal) {
                     this.optionExpandingRoot = newVal;
+                }
+                if(newVal === this.optionLastExpanding) {
+                    return;
                 }
                 this.expandOption(newVal);
             },
@@ -801,6 +805,7 @@
                     && this.optionExpandPath.indexOf(parentOption) == -1) {
                     this.optionExpandPath.push(parentOption);
                 }
+                this.optionLastExpanding = parentOption;
                 this.$emit('update:option-expanding', parentOption);
                 this.$emit('option-expand', parentOption);
             },

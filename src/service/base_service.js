@@ -1,6 +1,7 @@
 import {getBaseUrl,getCacheManager,search,ajax,notify,toast,error} from 'common/env';
 import {Config,ErrorLanguages} from 'common/constants';
 import Utils from 'common/utils';
+import {JSONPath} from 'jsonpath-plus';
 
 const CACHE_SUFFIX = '_MAP';
 const TASK_CACHE_NAME = 'TASK_MAP';
@@ -21,7 +22,7 @@ export default class BaseService {
 				identifyKeys: ['objType','objId'],
 				get: (placeholders) => {
 					return {
-						objs: [this.getObjInCacheMap(placeholders['objId'], placeholders['objType'] || Model)],
+						objs: [this.getObjInCacheMap(placeholders['objId'], _getObjType(placeholders))],
 						singleResult: true,
 					};
 				},
@@ -33,11 +34,11 @@ export default class BaseService {
 							singleResult: true,
 						};
 					}
-					let obj = new (placeholders['objType'] || Model)(rawObj, false, placeholders);
+					let obj = new (_getObjType(placeholders))(rawObj, false, placeholders);
 					if(! Utils.isString(obj.id)) {
 						throw new Error('请保证模型的id为字符串类型');
 					}
-					this.putObjInCacheMap(obj, placeholders['objType'] || Model);
+					this.putObjInCacheMap(obj, _getObjType(placeholders));
 					return {
 						objs: [obj],
 						singleResult: true,
@@ -48,18 +49,18 @@ export default class BaseService {
 				identifyKeys: ['objType', 'objIds'],
 				get: (placeholders) => {
 					return {
-						objs: this.getObjsInCacheMap(placeholders['objIds'], placeholders['objType'] || Model),
+						objs: this.getObjsInCacheMap(placeholders['objIds'], _getObjType(placeholders)),
 						singleResult: false,
 					};
 				},
 				set: (placeholders, cachable) => {
 					let objs = [];
 					for(let rawObj of cachable.objs) {
-						let obj = new (placeholders['objType'] || Model)(rawObj, false, placeholders);
+						let obj = new (_getObjType(placeholders))(rawObj, false, placeholders);
 						if(! Utils.isString(obj.id)) {
 							throw new Error('请保证模型的id为字符串类型');
 						}
-						this.putObjInCacheMap(obj, placeholders['objType'] || Model);
+						this.putObjInCacheMap(obj, _getObjType(placeholders));
 						objs.push(obj);
 					}
 					return {
@@ -143,7 +144,7 @@ export default class BaseService {
 			NONE: {
 				get: (placeholders) => {
 					return {
-						objs: this.getAllObjsInCacheMap(placeholders['objType'] || Model),
+						objs: this.getAllObjsInCacheMap(_getObjType(placeholders)),
 					};
 				},
 				set: (placeholders, cachable) => {
@@ -163,7 +164,7 @@ export default class BaseService {
 		placeholders._ajaxMethod = placeholders['ajaxMethod'] || 'POST';
 		placeholders._ajaxParamsHandleFn = null;
 		placeholders._ajaxSuccessFn = async (json) => {
-			if(_getResultFromJson(json, placeholders['resultKey']) === false) {
+			if(_getResultFromJson(json, placeholders['resultPath']) === false) {
 				return false;
 			}
 			const detailsHandleResult = await this._handleDetailsFetch(params, callbacks, placeholders, json);
@@ -199,7 +200,7 @@ export default class BaseService {
 		placeholders._ajaxMethod = placeholders['ajaxMethod'] || 'POST';
 		placeholders._ajaxParamsHandleFn = null;
 		placeholders._ajaxSuccessFn = (json) => {
-			if(_getResultFromJson(json, placeholders['resultKey']) === false) {
+			if(_getResultFromJson(json, placeholders['resultPath']) === false) {
 				return false;
 			}
 			let handleDeleteResult = this._handleDeleteCache(params, callbacks, placeholders);
@@ -225,7 +226,7 @@ export default class BaseService {
 		placeholders._ajaxMethod = placeholders['ajaxMethod'] || 'POST';
 		placeholders._ajaxParamsHandleFn = null;
 		placeholders._ajaxSuccessFn = async (json) => {
-			if(_getResultFromJson(json, placeholders['resultKey'])  === false) {
+			if(_getResultFromJson(json, placeholders['resultPath'])  === false) {
 				return false;
 			}
 			const detailsHandleResult = await this._handleDetailsFetch(params, callbacks, placeholders, json);
@@ -314,10 +315,10 @@ export default class BaseService {
 			}
 		};
 		placeholders._ajaxSuccessFn = (json) => {
-			if(_getResultFromJson(json, placeholders['resultKey']) === false) {
+			if(_getResultFromJson(json, placeholders['resultPath']) === false) {
 				return false;
 			}
-			const rows = _getRowsFromJson(json, placeholders['rowsKey']);
+			const rows = _getRowsFromJson(json, placeholders['rowsPath']);
 			if(! rows || (! canNotFound && singleResult && rows.length == 0)) {
 				return false;
 			}
@@ -686,7 +687,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	}
 	// 设置分页总数
 	if(params.pagination) {
-		let total = _getTotalFromJson(json, placeholders['totalKey']);
+		let total = _getTotalFromJson(json, placeholders['totalPath']);
 		if(total !== undefined) {
 			_setPaginationTotal(params.pagination, total, callbacks);
 		}
@@ -719,26 +720,43 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	return sucessHandleResult;
 };
 
-class Model {
-    constructor(row, isFromCache, placehoders) {
-        Utils.copyProperties(row, this);
-		if(isFromCache) {
-			return this;
+/**
+ * 私有: 获取默认模型
+ * @param {String} tag 该默认模型的tag
+ */
+const _getDefailtModel = (tag) => {
+	class Model {
+		constructor(row, isFromCache, placehoders) {
+			Utils.copyProperties(row, this);
+			if(isFromCache) {
+				return this;
+			}
+			if(placehoders && placehoders['model']) {
+				const model = placehoders['model'];
+				Utils.forEach(model, (rowKey, key) => {
+					this[key.replace(/Key/g, '')] = row[rowKey];
+				});
+			}
+			if(! this.id) {
+				this.id = Utils.generateTemporyId();
+			}
+			this.id = this.id && this.id.toString();
 		}
-		if(placehoders && placehoders['model']) {
-			const model = placehoders['model'];
-			Utils.forEach(model, (rowKey, key) => {
-				this[key.replace(/Key/g, '')] = row[rowKey];
-			});
-		}
-		if(! this.id) {
-			this.id = Utils.generateTemporyId();
-		}
-		this.id = this.id && this.id.toString();
-    }
-}
-Model.typeName = 'Model';
-Model.displayName = '对象';
+	}
+	Model.typeName = (tag || '') + 'Model';
+	Model.displayName = (tag || '') + '对象';
+	return Model;
+};
+
+/**
+ * 私有: 获取需要生成的对象类型
+ * @param {Object} placeholders 
+ * @
+ */
+const _getObjType = (placeholders) => {
+	return placeholders['objType'] || _getDefailtModel(
+		placeholders['tag'] || placeholders['errorTag']);
+};
 
 /**
  * 私有: 获取未远程获取的对象并添加到缓存中
@@ -869,8 +887,8 @@ const _handleError = (json, types, callbacks, placehoders) => {
 	if(Utils.isString(types)) {
 		types = [types];
 	}
-	const testErrorMsg = _getErrorMsgFromJson(json, placehoders['errorMsgKey']);
-	const testErrorType = _getErrorTypeFromJson(json, placehoders['errorTypeKey']);
+	const testErrorMsg = _getErrorMsgFromJson(json, placehoders['errorMsgPath']);
+	const testErrorType = _getErrorTypeFromJson(json, placehoders['errorTypePath']);
 	const defaultHandler = ErrorLanguages.DEFAULT_HANDLER;
 	if(! defaultHandler) {
 		return false;
@@ -902,6 +920,7 @@ const _handleError = (json, types, callbacks, placehoders) => {
 
 /**
  * 添加默认的回调
+ * @param {Object} callbacks 回调对象
  */
 const _handleDefaultErrorCallbacks = (callbacks) => {
 	if(! callbacks.onTooFast) {
@@ -938,6 +957,9 @@ const _handleDefaultErrorCallbacks = (callbacks) => {
 
 /**
  * 私有: 对本地缓存的对象进行分页切割
+ * @param {Object List} objs 缓存对象总列表
+ * @param {Object} pagination 分页对象
+ * @param {Object} callbacks 回调对象
  */
 const _setCachePagination = (objs, pagination, callbacks) => {
 	if(objs.length == 0) {
@@ -962,6 +984,9 @@ const _setCachePagination = (objs, pagination, callbacks) => {
 
 /**
  * 私有: 设置分页的总数
+ * @param {Object} pagination 分页对象
+ * @param {Object} ajaxParams AJAX对象
+ * @param {Object} callbacks 回调对象
  */
 const _setPagination = (pagination, ajaxParams, callbacks) => {
 	if(! pagination.id) {
@@ -1047,6 +1072,9 @@ const _setPagination = (pagination, ajaxParams, callbacks) => {
 
 /**
  * 私有: 设置分页查询结果的总数
+ * @param {Object} pagination 分页对象
+ * @param {Number} total 查询到的中数量
+ * @param {Object} callbacks 回调对象
  */
 const _setPaginationTotal = (pagination, total, callbacks) => {
 	let oldPagination = _getInCacheMap(PAGINATION_CACHE_NAME, pagination.id);
@@ -1073,39 +1101,61 @@ const _setPaginationTotal = (pagination, total, callbacks) => {
 };
 
 /**
- * 私有: 获取请求结果中的对象
+ * 私有: (底层) 格式化Path
+ * @param {String} path 从中获取对象时使用的Path
  */
-const _getObjFromJsonByKey = (json, key) => {
-	if(json[key] !== undefined) {
-		return json[key];
+const _formatPath = (path) => {
+	return path;
+};
+
+/**
+ * 私有: (底层) 根据Path获取对象
+ * @param {Object} json 目标对象
+ * @param {String} path 从中获取对象时使用的Path
+ */
+const _getObjByPath = (json, path) => {
+	return JSONPath({path: _formatPath(path), json: json})[0];
+};
+
+/**
+ * 私有: (底层) 获取请求结果中的对象
+ * @param {Object} json 请求结果对象
+ * @param {String} path 从中获取对象时使用的Key
+ */
+const _getObjFromJsonByKey = (json, path) => {
+	if(_getObjByPath(json, path) !== undefined) {
+		return _getObjByPath(json, path);
 	}
-	if(json.value && json.value[key] !== undefined) {
-		return json.value[key];
+	if((json.value && _getObjByPath(json.value, path)) !== undefined) {
+		return _getObjByPath(json.value, path);
 	}
-	if(json.data && json.data[key] !== undefined) {
-		return json.data[key];
+	if((json.data && _getObjByPath(json.data, path)) !== undefined) {
+		return _getObjByPath(json.data, path);
 	}
 };
 
 /**
- * 私有: 获取请求结果中的对象
+ * 私有: (底层) 获取请求结果中的对象
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} paths 从中获取对象时使用的Path, 可以为列表
+ * @param {Object} defaultVal 默认值
  */
-const _getObjFromJson = (json, keys, defaultVal) => {
-	if(! json || ! keys) {
+const _getObjFromJson = (json, paths, defaultVal) => {
+	if(! json || ! paths) {
 		return;
 	}
 	if(! Utils.isObject(json)) {
 		return defaultVal;
 	}
-	if(Utils.isString(keys)) {
-		let result = _getObjFromJsonByKey(json, keys);
+	if(Utils.isString(paths)) {
+		let result = _getObjFromJsonByKey(json, paths);
 		if(result !== undefined) {
 			return result;
 		}
 	}
-	if(Utils.isArray(keys)) {
-		for(let key of keys) {
-			let result = _getObjFromJsonByKey(json, key);
+	if(Utils.isArray(paths)) {
+		for(let path of paths) {
+			let result = _getObjFromJsonByKey(json, path);
 			if(result) {
 				return result;
 			}
@@ -1116,43 +1166,53 @@ const _getObjFromJson = (json, keys, defaultVal) => {
 
 /**
  * 私有: 获取请求结果中的处理结果标志
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} path 从中获取处理结果标志时使用的Path, 可以为列表
  */
-const _getResultFromJson = (json, key = 'result') => {
-	return _getObjFromJson(json, key, false);
+const _getResultFromJson = (json, path = 'result') => {
+	return _getObjFromJson(json, path, false);
 };
 
 /**
  * 私有: 获取请求结果中的数据集
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} path 从中获取数据集时使用的Path, 可以为列表
  */
-const _getRowsFromJson = (json, key = 'rows') => {
-	return _getObjFromJson(json, key);
+const _getRowsFromJson = (json, path = 'rows') => {
+	return _getObjFromJson(json, path);
 };
 
 /**
  * 私有: 获取请求结果中的总数的值
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} path 从中获取总数的值时使用的Path, 可以为列表
  */
-const _getTotalFromJson = (json, key = 'total') => {
-	return _getObjFromJson(json, key);
+const _getTotalFromJson = (json, path = 'total') => {
+	return _getObjFromJson(json, path);
 };
 
 /**
  * 私有: 获取错误请求结果中的错误信息
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} path 从中获取错误信息时使用的Path, 可以为列表
  */
-const _getErrorMsgFromJson = (json, key = ['msg', 'message']) => {
-	return _getObjFromJson(json, key);
+const _getErrorMsgFromJson = (json, path = ['msg', 'message']) => {
+	return _getObjFromJson(json, path);
 };
 
 /**
- * 私有: 获取错误请求结果中的错误信息
+ * 私有: 获取错误请求结果中的错误类型
+ * @param {Object} json 请求结果对象
+ * @param {String | String List} path 从中获取错误类型时使用的Path, 可以为列表
  */
-const _getErrorTypeFromJson = (json, key = 'errorType') => {
-	return _getObjFromJson(json, key);
+const _getErrorTypeFromJson = (json, path = 'errorType') => {
+	return _getObjFromJson(json, path);
 };
 
 /**
  * 私有: 提交一个任务
  * @param {Object} task 任务
- * @param {Boolean} 任务提交是否成功
+ * @param {Object} callbacks 回调对象
  */
 const _postTask = (task, callbacks) => {
 	let currentTime = new Date().getTime();
@@ -1195,7 +1255,7 @@ const _postTask = (task, callbacks) => {
 /**
  * 私有: 标记一个任务状态
  * @param {Object} task 任务
- * @param {Boolean} 任务提交是否成功
+ * @param {String} status 任务状态
  */
 const _markTaskStatus = (task, status) => {
 	let currentTime = new Date().getTime();

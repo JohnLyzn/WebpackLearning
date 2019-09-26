@@ -334,16 +334,15 @@ export const getElementRect = (el) => {
 };
 
 /**
- * 处理浏览器返回
+ * 处理是否有上一页
  */
-export const pageBack = () => {
+export const hasLastPage = (navigator, history) => {
 	// 尝试回退到上一页
 	if (navigator.userAgent.indexOf('MSIE') != -1 &&
 		navigator.userAgent.indexOf('Opera') == -1) {
 		// IE      
 		if (history.length > 0) {
-			window.history.go(-1);
-			return;
+			return true;
 		}
 	}
 	if (navigator.userAgent.indexOf('Firefox') != -1 ||
@@ -352,10 +351,20 @@ export const pageBack = () => {
 		navigator.userAgent.indexOf('Chrome') != -1 ||
 		navigator.userAgent.indexOf('WebKit') != -1) {
 		//非IE浏览器
-		if (window.history.length > 1) {
-			window.history.go(-1);
-			return;
+		if (history.length > 1) {
+			return true;
 		}
+	}
+	return history.length > 1;
+}
+
+/**
+ * 处理浏览器返回
+ */
+export const pageBack = () => {
+	if(hasLastPage(navigator, history)) {
+		window.history.go(-1);
+		return;
 	}
 	// 如果没有上一页, 则关闭标签页
 	if(g_clientType < 200) {
