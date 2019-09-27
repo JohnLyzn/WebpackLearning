@@ -355,17 +355,19 @@ export const hasLastPage = (navigator, history) => {
 			return true;
 		}
 	}
-	return history.length > 1;
+	return history.length > 0;
 }
 
 /**
  * 处理浏览器返回
  */
 export const pageBack = () => {
-	if(hasLastPage(navigator, history)) {
+	if(hasLastPage(window.navigator, window.history)) {
 		window.history.go(-1);
 		return;
 	}
+	// 向iframe外部发送需要关闭iframe的消息(如果是)
+	notifyParentFrame('pageclose');
 	// 如果没有上一页, 则关闭标签页
 	if(g_clientType < 200) {
 		window.close();
@@ -376,7 +378,16 @@ export const pageBack = () => {
 }
 
 /**
- * 
+ * 向父级Frame发送消息
+ */
+export const notifyParentFrame = (data) => {
+	if(window.parent && window.parent.postMessage) {
+		window.parent.postMessage(data, '*');
+	}
+};
+
+/**
+ * 生成默认的全局的二维码DOM
  */
 const genterateDefaultQrCodeDom = () => {
 	const dom = document.querySelector('.qrcode-fixed-container>.qrcode');
