@@ -355,7 +355,7 @@ export const hasLastPage = (navigator, history) => {
 			return true;
 		}
 	}
-	return history.length > 0;
+	return history.length > 1;
 }
 
 /**
@@ -464,13 +464,13 @@ export const shareToWx = (config) => {
 	if(g_clientType < 300) { /* APP */
 		require('plugin/API').callAppAPI('shareToWX', {
 			url: config.url,
-			tiltle: config.title,
+			title: config.title,
 			content: config.content,
 		});
 		return;
 	}
 	/* wx */
-	window.open(generateWxUrl({
+	window.open(generateShareWxUrl({
 		shareType: 'href',
 		url: encodeURIComponent(config.url),
 		title: config.title,
