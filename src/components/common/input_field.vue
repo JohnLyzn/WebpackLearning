@@ -22,8 +22,7 @@
                 :action-icon="isOptional?':iconfont icondown':''"
                 @click.native="showOptionPicker()"
                 @focus="inputFocused=true"
-                @blur="inputFocused=false"
-                @change="onInputChange">
+                @blur="inputFocused=false">
                 <div v-if="isMultiple"
                     v-show="pickedOptionIds.length"
                     ref="multiBlock"
@@ -419,11 +418,13 @@
                 }
                 if(newValue && ! this.validate(true)) {
                     this.$emit('input', '');
+                    this.$emit('change', '');
                     return;
                 }
                 const realVal = this._toRealValue(newValue, 
                     (Utils.isObject(this.value) || this.value === ''));
                 this.$emit('input', realVal);
+                this.$emit('change', realVal);
                 if(this.isOptional) {
                     this.pickOption(realVal);
                 }
@@ -472,6 +473,7 @@
             },
             'pickedOptions': function(newVal, oldVal) {
                 if(! this.isMultiple) {
+                    // 单个的由改变inputValue来触发
                     return;
                 }
                 this.inputValue = '';
@@ -639,12 +641,6 @@
                     this._mergeOptionMap(options);
                 }
             },
-            onInputChange() {
-                if(this.isOptional) { /* otional不能通过@change来, 会重复 */
-                    return false;
-                }
-                this.$emit('change', this.inputValue);
-            },
             validate(isChangeTips) {
                 if(this.required && ! this.inputValue) {
                     if(isChangeTips) {
@@ -732,6 +728,10 @@
                 }
             },
             pickOption(option, isManual) {
+                if(option && option.$pureParent) {
+                    this.expandOption(option);
+                    return;
+                }
                 if(option && option.$disabled) {
                     this.$emit('click-disabled-option', option);
                     return;
@@ -747,7 +747,7 @@
                     this.pickedOptionIds.push(optionId);
                 } else {
                     const lastPicked = this.pickedOptionIds[0];
-                    this.pickedOptionIds[0] = optionId;
+                    this.$set(this.pickedOptionIds, 0, optionId);
                     this.inputValue = this._toInputValue(option);
                     this.hideOptionPicker();
                     if(lastPicked == optionId) {
