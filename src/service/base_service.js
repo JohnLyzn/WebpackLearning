@@ -289,7 +289,7 @@ export default class BaseService {
 			if(! params.searches) {
 				let cacheable = this.handleCacheByRule('get', placeholders);
 				if(cacheSearches) {
-					// 非获取单个结果不允许进行缓存查询, 这样查出来的结果可能会有漏
+					// 非获取单个结果不允许进行缓存查询, 否则查出来的结果可能会有漏
 					if(! singleResult) {
 						throw new Error('非获取单个结果不允许进行缓存查询');
 					}

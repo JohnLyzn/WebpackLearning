@@ -264,7 +264,7 @@
 >> XxxModel.displayName = 'Xxx模型';
 >>```
 
-> **使用Service的例子(xxx.vue, 可拷贝修改使用):**  
+> **使用Service的例子(xxx.vue, 可拷贝修改使用):**
 > **     
 
 >>```js
@@ -292,4 +292,54 @@
 >> if(! xxxModels) {
 >>      // 任何错误或者请求失败返回内容都是undefined
 >> }
+>>
+> **目前基于MUSE_UI的图标库默认是Materia，由于墙的存在会有拉取不到的问题，故改用iconfont，并替换了框架默认的图片配置（common/env.js）中， 替换内容如下：**
+>> close: iconfont iconclose        
+>> refresh: iconfont iconrefresh        
+>> success: iconfont iconsuccess        
+>> info: iconfont iconinfo      
+>> warn: iconfont iconwarn      
+>> error: iconfont iconerror        
+> *请更换iconfont的文件时注意添加以上图标，否则会显示异常！*        
+> **另外，components/common下自带了两个基于MUSE_UI开发的通用组件，分别为input-field和search-field，它也包含了一些图标，内容如下：**       
+>> *input-field：*      
+>> down: iconfont icondown      
+>> close: iconfont iconclose        
+>> expandback: iconfont iconroundleft       
+>> more: iconfont iconmore      
+>> expand: iconfont iconroundright      
+>> *search-field：*     
+>> close: iconfont iconclose        
+>> search: iconfont iconsearch      
+> *同样的，如果使用了以上组件，请更换iconfont的文件时注意添加以上图标，否则会显示异常！*        
+> **自带组件的使用例子**        
+>> *input-field*
+>>> *同时支持输入字符串，actionsheet风格列表选择（标志了options参数即变成列表选择，配合expanding参数支持树型选择以及配合mutiple参数支持多选），以及MuseUI的text-field的基本属性。可自行查看源码理解使用。*
+>>```html
+>><input-field v-model="OBJ.selected"
+>>    :options="getObj(OBJ.expanding.id).rows"
+>>    option-id-key="id"
+>>    option-label-key="name"
+>>    option-editable 使可添加不存在的值
+>>    option-multiple 使可多选
+>>    option-searchable
+>>    option-search-value.sync="OBJ.query.name"
+>>    option-expandable
+>>    :option-root="OBJ.root"
+>>    :option-expanding="OBJ.expanding"
+>>    :option-loading="getObj(OBJ.expanding.id).$loading"
+>>    :option-refreshing="getObj(OBJ.expanding.id).$refreshing"
+>>    :option-load-end="getObj(OBJ.expanding.id).pagination.$pagingEnd"
+>>    @option-expand="loadObjs(OBJ.expanding.id,'reset')"
+>>    @option-load="loadObjs(OBJ.expanding.id,'next')"
+>>    @option-refresh="loadObjs(OBJ.expanding.id,'reset')"
+>>    @change="onChange()">
+>></input-field>
+>>```
+>> *search-field*
+>>> *主要封装了搜索中状态的显示处理，以及清空内容后自动刷新。*
+>>```html
+>><search-field v-model="SEARCH.value"
+>>    @search="doSearch()">
+>></search-field>
 >>```

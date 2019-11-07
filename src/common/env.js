@@ -441,27 +441,28 @@ const generateShareWxUrl = (params) => {
  * 处理分享到微信
  */
 export const shareToWx = (config) => {
-	if(g_clientType < 200) { /* PC */
+	if(isCurrentClient('pc') || config.forceQrCode) { /* PC */
 		if(! config.dom) {
 			config.dom = genterateDefaultQrCodeDom();
 		}
 		const QRCode = require('qrcodejs2');
+		const base64 = new (require('plugin/Base64').default)();
 		new QRCode(config.dom, {
 			text: generateShareWxUrl({
 				shareType: 'href',
-				url: encodeURIComponent(config.url),
-				title: config.title,
-				desc: config.content,
+				url: base64.encode(encodeURIComponent(config.url)),
+				title: base64.encode(config.title),
+				desc: base64.encode(config.content),
 			}),
-			width: config.width || 170,
-			height: config.height || 170,
+			width: config.width || 320,
+			height: config.height || 320,
 			colorDark: config.color || '#333333', //二维码颜色
 			colorLight: config.bgColor || '#ffffff', //二维码背景色
-			correctLevel: QRCode.CorrectLevel.L //容错率，L/M/H
+			correctLevel: QRCode.CorrectLevel.H //容错率，L/M/H
 		});
 		return;
 	}
-	if(g_clientType < 300) { /* APP */
+	if(isCurrentClient('app')) { /* APP */
 		require('plugin/API').callAppAPI('shareToWX', {
 			url: config.url,
 			title: config.title,
@@ -476,4 +477,30 @@ export const shareToWx = (config) => {
 		title: config.title,
 		desc: config.content,
 	}));
+}
+
+/**
+ * 判断当前客户端
+ */
+export const isCurrentClient = (type) => {
+	switch(type) {
+		case 'pc':
+			return Math.floor(g_clientType / 100) == 1;
+		case 'app':
+			return Math.floor(g_clientType / 100) == 2;
+		case 'wx':
+			return Math.floor(g_clientType / 100) == 3;
+	}
+	return false;
+};
+
+/**
+ * 打开url
+ */
+export const openUrl = (url) => {
+	if(isCurrentClient('pc')) {
+		window.open(url);
+		return;
+	}
+	window.location.href = url;
 }

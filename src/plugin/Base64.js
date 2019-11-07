@@ -53,11 +53,11 @@ export default class Base64 {
         return output;
     }
 }
- // private property
- const _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+// private property
+const _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
- // private method for UTF-8 encoding
- const _utf8_encode = (string) => {
+// private method for UTF-8 encoding
+const _utf8_encode = (string) => {
     string = string.replace(/\r\n/g,"\n");
     var utftext = "";
     for (var n = 0; n < string.length; n++) {

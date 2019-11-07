@@ -178,6 +178,9 @@
 			&.fixed {
 				position: fixed;
 			}
+			cite {
+				font-size: 14px;
+			}
 		}
 		.main-body-wrapper {
 			width: 100%;
@@ -192,8 +195,9 @@
 				}
 			}
 		}
-		.main-header.fixed~.main-body {
-			padding-top: 72px;
+		.main-header.fixed~.main-body,
+		.main-header.fixed~.container {
+			padding-top: 72px !important;
 		}
 	}
 </style>

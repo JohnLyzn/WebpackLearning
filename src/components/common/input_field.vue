@@ -20,7 +20,8 @@
                 :disabled="isDisabled"
                 :readonly="isReadOnly"
                 :action-icon="isOptional?':iconfont icondown':''"
-                @click.native="showOptionPicker()"
+                :action-click="showOptionPicker"
+                @click.native="showOptionPicker(true)"
                 @focus="inputFocused=true"
                 @blur="inputFocused=false">
                 <div v-if="isMultiple"
@@ -81,6 +82,7 @@
                 <search-field v-model="optionSearchVal"
                     :placeholder="optionSearchPlaceholder"
                     small
+                    :searching="isOptionLoading"
                     @search="searchOption">
                 </search-field>
             </div>
@@ -221,13 +223,17 @@
                 type: Array,
                 default: -1,
             },
-            optionEmptyMsg: {
+            optionIdKey: {
                 type: String,
-                default: '暂无可选内容~',
+                default: 'id',
             },
             optionLabelKey: {
                 type: String,
                 default: 'name',
+            },
+            optionEmptyMsg: {
+                type: String,
+                default: '暂无可选内容~',
             },
             optionRefreshing: {
                 type: Boolean,
@@ -244,10 +250,6 @@
             optionLoadEndMsg: {
                 type: String,
                 default: '没有更多了~',
-            },
-            optionIdKey: {
-                type: String,
-                default: 'id',
             },
             optionMultiple: {
                 type: Boolean,
@@ -399,9 +401,21 @@
                 }
                 const result = [];
                 for(let id of this.pickedOptionIds) {
+                    if(! id) {
+                        continue;
+                    }
                     result.push(this._toOptionById(id));
                 }
                 return result;
+            },
+            isObjTypeBinding() {
+                if(! this.isOptional) {
+                    return false;
+                }
+                if(Utils.isObject(this.value)) {
+                    return true;
+                }
+                return this.options.length && Utils.isObject(this.options[0]);
             },
         },
         watch: {
@@ -421,8 +435,7 @@
                     this.$emit('change', '');
                     return;
                 }
-                const realVal = this._toRealValue(newValue, 
-                    (Utils.isObject(this.value) || this.value === ''));
+                const realVal = this._toRealValue(newValue);
                 this.$emit('input', realVal);
                 this.$emit('change', realVal);
                 if(this.isOptional) {
@@ -435,8 +448,7 @@
                 if(! this.isMultiple 
                     && this.inputValue 
                     && ! this.pickedOptionIds.length) {
-                    this.pickOption(this._toRealValue(this.inputValue,
-                        (Utils.isObject(this.value) || this.value === '')));
+                    this.pickOption(this._toRealValue(this.inputValue));
                 }
             },
             'optionRefreshing': function(newVal) {
@@ -510,6 +522,10 @@
                     return;
                 }
                 for(let option of options) {
+                    if(! this._toOptionId(option)
+                        || ! this._toOptionLabel(option)) {
+                        continue;
+                    }
                     // ??? idkey填错也可能重复!!!
                     this.$set(this.optionIdMap, 
                         this._toOptionId(option),
@@ -550,11 +566,8 @@
                 this.inputValue = '';
                 return true;
             },
-            _toRealValue(inputValue, isObjType) {
+            _toRealValue(inputValue) {
                 if(this.isOptional) {
-                    if(! this.isReadOnly) {
-                       return inputValue;
-                    }
                     let option, extractFn;
                     if(this._toOptionById(inputValue)) {
                         option = this._toOptionById(inputValue);
@@ -564,7 +577,7 @@
                         extractFn = this._toOptionLabel;
                     }
                     if(option) {
-                        if(isObjType) {
+                        if(this.isObjTypeBinding) {
                             return option;
                         }
                         return extractFn(option);
@@ -574,7 +587,9 @@
             },
             _toInputValue(realValue) {
                 if(this.isOptional) {
-                    if(Utils.isObject(realValue)) {
+                    if(Utils.isObject(realValue)
+                        && this._toOptionId(realValue)
+                        && this._toOptionLabel(realValue)) {
                         if(! this._toOptionById(this._toOptionId(realValue))) {
                             this._mergeOptionMap([realValue]);
                         }
@@ -615,7 +630,7 @@
             },
             _changeDisplayingOptions(options) {
                 this._setDisplayingOptions(options);
-                this._mergeOptionMap(this.displayingOptions);
+                this._mergeOptionMap(options);
             },
             _mergePickedOptionIds(options) {
                 if(! options) {
@@ -623,8 +638,12 @@
                 }
                 let isChanged = false;
                 if(options.length == this.pickedOptionIds.length) {
-                    for(let item of options) {
-                        if(this.pickedOptionIds.indexOf(this._toOptionId(item)) == -1) {
+                    for(let option of options) {
+                        if(! this._toOptionId(option)
+                            || ! this._toOptionLabel(option)) {
+                            continue;
+                        }
+                        if(this.pickedOptionIds.indexOf(this._toOptionId(option)) == -1) {
                             isChanged = true;
                             break;
                         }
@@ -634,8 +653,12 @@
                 }
                 if(isChanged) {
                     const newPickedOptionIds = [];
-                    for(let item of options) {
-                        newPickedOptionIds.push(this._toOptionId(item));
+                    for(let option of options) {
+                        if(! this._toOptionId(option)
+                            || ! this._toOptionLabel(option)) {
+                            continue;
+                        }
+                        newPickedOptionIds.push(this._toOptionId(option));
                     }
                     this.pickedOptionIds = newPickedOptionIds;
                     this._mergeOptionMap(options);
@@ -669,8 +692,14 @@
                 this.inputValue = '';
                 this.$refs.input.focus();
             },
-            showOptionPicker() {
+            focus() {
+                this.$refs.input.focus();
+            },
+            showOptionPicker(isCheckEditable) {
                 if(! this.isOptional) {
+                    return;
+                }
+                if(isCheckEditable && this.optionEditable) {
                     return;
                 }
                 if(this.readonly || this.disabled) {
@@ -711,7 +740,7 @@
                     }
                 }, 0);
             },
-            searchOption(searchEndFn) {
+            searchOption() {
                 this.optionExpandPath = [];
                 this.isOptionLoadEnd = false;
                 this._setDisplayingOptions('');
@@ -834,8 +863,13 @@
             },
         },
         mounted() {
-            this.displayingOptions = this.options;
-            this.inputValue = this._toInputValue(this.value);
+            if(this.options) {
+                this._checkOptions();
+                this._changeDisplayingOptions(this.options);
+            }
+            if(this.value) {
+                this.inputValue = this._toInputValue(this.value);
+            }
         },
     }
 </script>
