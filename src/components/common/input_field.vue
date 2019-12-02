@@ -7,7 +7,15 @@
                 'input-field__input--disabled':isDisabled,
                 'input-field__input--multiple':isMultiple,
             }">
-            <mu-text-field ref="input"
+            <mu-button v-if="isOptional&&optionMinimum"
+                icon
+                @click="showOptionPicker(true)">
+                <mu-icon size="24"
+                    :value="optionMinimumIcon">
+                </mu-icon>
+            </mu-button>
+            <mu-text-field v-show="!optionMinimum"
+                ref="input"
                 :class="{'picked':pickedOptionIds.length}"
                 v-model="inputValue"
                 v-bind="$attrs"
@@ -191,6 +199,10 @@
             value: {
                 type: String,
             },
+            modelExtractKey: {
+                type: String,
+                default: '',
+            },
             description: {
                 type: String,
                 default: '',
@@ -251,6 +263,14 @@
                 type: String,
                 default: '没有更多了~',
             },
+            optionMinimum: {
+                type: Boolean,
+                default: false,
+            },
+            optionMinimumIcon: {
+                type: String,
+                default: ':iconfont icondown',
+            },
             optionMultiple: {
                 type: Boolean,
                 defalult: false,
@@ -279,6 +299,10 @@
                 type: Object,
                 default: undefined,
             },
+            optionRoot: {
+                type: Object,
+                default: '',
+            },
         },
         data() {
             return {
@@ -293,6 +317,7 @@
                 pickedOptionIds: [], /* 可能为单选也可能为多选 */
                 optionIdMap: {},
                 optionLabelMap: {},
+                optionExtractValMap: {},
                 optionExpandingRoot: '',
                 optionLastExpanding: '',
                 optionExpandPath: [],
@@ -376,7 +401,7 @@
             },
             optionExpandRoot() {
                 if(! this.optionExpandingRoot) {
-                    return '';
+                    return this.optionRoot;
                 }
                 return this.optionExpandingRoot;
             },
@@ -415,7 +440,8 @@
                 if(Utils.isObject(this.value)) {
                     return true;
                 }
-                return this.options.length && Utils.isObject(this.options[0]);
+                return this.options.length 
+                    && Utils.isObject(this.options[0]);
             },
         },
         watch: {
@@ -436,6 +462,9 @@
                     return;
                 }
                 const realVal = this._toRealValue(newValue);
+                if(! realVal) {
+                    return;
+                }
                 this.$emit('input', realVal);
                 this.$emit('change', realVal);
                 if(this.isOptional) {
@@ -504,7 +533,7 @@
                 this.$emit('update:optionSearchValue', newVal);
             },
             'optionExpanding': function(newVal) {
-                if(! this.optionExpandingRoot && newVal) {
+                if(! this.optionExpandRoot && newVal) {
                     this.optionExpandingRoot = newVal;
                 }
                 if(newVal === this.optionLastExpanding) {
@@ -534,6 +563,12 @@
                     this.$set(this.optionLabelMap, 
                         this._toOptionLabel(option),
                         option);
+                    // ??? 如果有传入v-model解析的key, 则生成映射, 同样可能重复
+                    if(this.modelExtractKey) {
+                        this.$set(this.optionExtractValMap, 
+                            this._toOptionExtractValue(option),
+                            option);
+                    }
                 }
             },
             _setDisplayingOptions(options, optionIdMap) {
@@ -569,15 +604,18 @@
             _toRealValue(inputValue) {
                 if(this.isOptional) {
                     let option, extractFn;
-                    if(this._toOptionById(inputValue)) {
-                        option = this._toOptionById(inputValue);
-                        extractFn = this._toOptionId;
-                    } else {
+                    if(this._toOptionByLabel(inputValue)) {
                         option = this._toOptionByLabel(inputValue);
                         extractFn = this._toOptionLabel;
+                    } else {
+                        option = this._toOptionById(inputValue);
+                        extractFn = this._toOptionId;
                     }
                     if(option) {
                         if(this.isObjTypeBinding) {
+                            if(this.modelExtractKey) {
+                                return this._toOptionExtractValue(option);
+                            }
                             return option;
                         }
                         return extractFn(option);
@@ -595,8 +633,8 @@
                         }
                         return this._toOptionLabel(realValue) || '';
                     }
-                    if(! this.isReadOnly) {
-                       return realValue;
+                    if(this.modelExtractKey && this._toOptionByExtractVal(realValue)) {
+                        return this._toOptionLabel(this._toOptionByExtractVal(realValue));
                     }
                     if(this._toOptionById(realValue)) {
                         return this._toOptionLabel(this._toOptionById(realValue));
@@ -619,14 +657,20 @@
                 }
                 return option;
             },
+            _toOptionExtractValue(option) {
+                if(Utils.isObject(option)) {
+                    return option[this.modelExtractKey];
+                }
+                return option;
+            },
             _toOptionById(id) {
                 return this.optionIdMap[id];
             },
             _toOptionByLabel(label) {
-                if(! label) {
-                    return;
-                }
                 return this.optionLabelMap[label];
+            },
+            _toOptionByExtractVal(extractVal) {
+                return this.optionExtractValMap[extractVal];
             },
             _changeDisplayingOptions(options) {
                 this._setDisplayingOptions(options);
@@ -757,6 +801,9 @@
                 }
             },
             pickOption(option, isManual) {
+                if(! option) {
+                    return;
+                }
                 if(option && option.$pureParent) {
                     this.expandOption(option);
                     return;

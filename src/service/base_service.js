@@ -19,10 +19,17 @@ export default class BaseService {
 		// 定义缓存对象的组织关系
 		this.CACHE_RULES = {
 			SINGLE: {
-				identifyKeys: ['objType','objId'],
+				identifyKeys: ['objType|model','objId'],
 				get: (placeholders) => {
+					let obj = this.getObjInCacheMap(placeholders['objId'], _getObjType(placeholders));
+					if(! obj) {
+						return {
+							objs: [],
+							singleResult: true,
+						};
+					}
 					return {
-						objs: [this.getObjInCacheMap(placeholders['objId'], _getObjType(placeholders))],
+						objs: [obj],
 						singleResult: true,
 					};
 				},
@@ -34,11 +41,7 @@ export default class BaseService {
 							singleResult: true,
 						};
 					}
-					let obj = new (_getObjType(placeholders))(rawObj, false, placeholders);
-					if(! Utils.isString(obj.id)) {
-						throw new Error('请保证模型的id为字符串类型');
-					}
-					this.putObjInCacheMap(obj, _getObjType(placeholders));
+					let obj = this.putObjInCacheMap(rawObj, _getObjType(placeholders), placeholders);
 					return {
 						objs: [obj],
 						singleResult: true,
@@ -46,23 +49,28 @@ export default class BaseService {
 				}
 			},
 			MULTI: {
-				identifyKeys: ['objType', 'objIds'],
+				identifyKeys: ['objType|model', 'objIds'],
 				get: (placeholders) => {
+					let objs = this.getObjsInCacheMap(placeholders['objIds'], _getObjType(placeholders));
+					if(! objs || objs.length != placeholders['objIds'].length) { /* 数量不一致当做没缓存 */
+						return {
+							objs: [],
+							singleResult: false,
+						};
+					}
 					return {
-						objs: this.getObjsInCacheMap(placeholders['objIds'], _getObjType(placeholders)),
+						objs: objs,
 						singleResult: false,
 					};
 				},
 				set: (placeholders, cachable) => {
-					let objs = [];
-					for(let rawObj of cachable.objs) {
-						let obj = new (_getObjType(placeholders))(rawObj, false, placeholders);
-						if(! Utils.isString(obj.id)) {
-							throw new Error('请保证模型的id为字符串类型');
-						}
-						this.putObjInCacheMap(obj, _getObjType(placeholders));
-						objs.push(obj);
+					if(! cachable.objs || ! cachable.objs.length) {
+						return {
+							objs: [],
+							singleResult: false,
+						};
 					}
+					let objs = this.putObjsInCacheMap(cachable.objs, _getObjType(placeholders), placeholders);
 					return {
 						objs: objs,
 						singleResult: false,
@@ -74,11 +82,19 @@ export default class BaseService {
 				get: (placeholders) => {
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType']);
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType'], placeholders);
 						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
 					}
+					let obj = this.getObjInCacheMap(parentObj[placeholders['subObjIdCacheKey']], placeholders['subObjType']);
+					if(! obj) {
+						return {
+							objs: [],
+							parentObj: parentObj,
+							singleResult: true,
+						};
+					}
 					return {
-						objs: [this.getObjInCacheMap(parentObj[placeholders['subObjIdCacheKey']], placeholders['subObjType'])],
+						objs: [obj],
 						parentObj: parentObj,
 						singleResult: true,
 					};
@@ -89,10 +105,10 @@ export default class BaseService {
 					}, cachable);
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType']);
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType'], placeholders);
 					}
 					parentObj[placeholders['subObjIdCacheKey']] = result.objs[0].id;
-					this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
+					this.putObjInCacheMap(parentObj, placeholders['parentObjType'], placeholders);
 					return {
 						objs: result.objs,
 						parentObj: parentObj,
@@ -105,11 +121,19 @@ export default class BaseService {
 				get: (placeholders) => {
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType']);
+						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType'], placeholders);
 						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
 					}
+					let objs = this.getObjsInCacheMap(parentObj[placeholders['subObjIdsCacheKey']], placeholders['subObjType']);
+					if(! objs || ! objs.length) {
+						return {
+							objs: [],
+							parentObj: parentObj,
+							singleResult: false,
+						};
+					}
 					return {
-						objs: this.getObjsInCacheMap(parentObj[placeholders['subObjIdsCacheKey']], placeholders['subObjType']),
+						objs: objs,
 						parentObj: parentObj,
 						singleResult: false,
 					};
@@ -120,7 +144,7 @@ export default class BaseService {
 					}, cachable);
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType']);
+						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType'], placeholders);
 					}
 					let cachedSubObjIds = parentObj[placeholders['subObjIdsCacheKey']];
 					if(cachedSubObjIds) {
@@ -133,7 +157,7 @@ export default class BaseService {
 						cachedSubObjIds = Utils.asListByKey(result.objs, 'id');
 					}
 					parentObj[placeholders['subObjIdsCacheKey']] = cachedSubObjIds;
-					this.putObjInCacheMap(parentObj, placeholders['parentObjType']);
+					this.putObjInCacheMap(parentObj, placeholders['parentObjType'], placeholders);
 					return {
 						objs: result.objs,
 						parentObj: parentObj,
@@ -143,8 +167,14 @@ export default class BaseService {
 			},
 			NONE: {
 				get: (placeholders) => {
+					let objs = this.getAllObjsInCacheMap(_getObjType(placeholders));
+					if(! objs || ! objs.length) {
+						return {
+							objs: [],
+						};
+					}
 					return {
-						objs: this.getAllObjsInCacheMap(_getObjType(placeholders)),
+						objs: objs,
 					};
 				},
 				set: (placeholders, cachable) => {
@@ -370,21 +400,27 @@ export default class BaseService {
 	 * @param {*} objType 
 	 * @param {*} onlyMemery 
 	 */
-	putObjsInCacheMap(objs, objType, onlyMemery) {
+	putObjsInCacheMap(objs, objType, placeholders) {
+		let result = [];
 		for(let i = 0; i < objs.length; i ++) {
-			let obj = objs[i];
-			this.putObjInCacheMap(obj, objType, onlyMemery);
+			result.push(this.putObjInCacheMap(objs[i], objType, placeholders));
 		}
+		return result;
 	};
 	
 	/**
 	 * 添加对象到缓存池中
 	 * @param {*} obj 
 	 * @param {*} objType 
-	 * @param {*} onlyMemery 
+	 * @param {*} placeholders 
 	 */
-	putObjInCacheMap(obj, objType, onlyMemery) {
-		_putInCacheMap(_getCacheKey(objType), obj, onlyMemery);
+	putObjInCacheMap(obj, objType, placeholders) {
+		let cacheObj = new (objType)(obj, false, placeholders);
+		if(! Utils.isString(cacheObj.id)) {
+			throw new Error('请保证模型的id为字符串类型');
+		}
+		_putInCacheMap(_getCacheKey(objType), cacheObj, placeholders['onlyMemery']);
+		return this.getObjInCacheMap(cacheObj.id, objType);
 	};
 	
 	/**
@@ -396,7 +432,7 @@ export default class BaseService {
 		if(objs) {
 			let result = [];
 			for(let i = 0; i < objs.length; i ++) {
-				result.push(new objType(objs[i], true));
+				result.push(new (objType)(objs[i], true));
 			}
 			return result;
 		}
@@ -726,15 +762,19 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
  */
 const _getDefailtModel = (tag) => {
 	class Model {
-		constructor(row, isFromCache, placehoders) {
-			Utils.copyProperties(row, this);
+		constructor(row, isFromCache, placeholders) {
+			if(Utils.isObject(row)) {
+				Utils.copyProperties(row, this);
+			} else {
+				this.$value = row;
+			}
 			if(isFromCache) {
 				return this;
 			}
-			if(placehoders && placehoders['model']) {
-				const model = placehoders['model'];
+			if(placeholders && placeholders['model']) {
+				const model = placeholders['model'];
 				Utils.forEach(model, (rowKey, key) => {
-					this[key.replace(/Key/g, '')] = row[rowKey];
+					this[key.replace(/Key/g, '')] = this[rowKey];
 				});
 			}
 			if(! this.id) {
@@ -763,13 +803,12 @@ const _getObjType = (placeholders) => {
  * @param {String} objId 任意指定的对象ID
  * @param {Any Model Type} objType 缓存模型类型
  */
-const _generateUnfetchObjAndCache = (objId, objType) => {
+const _generateUnfetchObjAndCache = (objId, objType, placeholders) => {
 	const obj = new objType({
 		id: objId,
 		name:'#未获取#'
 	}, true);
-	this.putObjInCacheMap(obj, objType, true);
-	return obj;
+	return this.putObjInCacheMap(obj, objType, placeholders);
 };
 
 /**
@@ -883,12 +922,12 @@ const _search = (searchObjs, searches, strict) => {
  * @param {String Array} types 指定识别的类型
  * @param {Function Object} callbacks 可用的回调
  */
-const _handleError = (json, types, callbacks, placehoders) => {
+const _handleError = (json, types, callbacks, placeholders) => {
 	if(Utils.isString(types)) {
 		types = [types];
 	}
-	const testErrorMsg = _getErrorMsgFromJson(json, placehoders['errorMsgPath']);
-	const testErrorType = _getErrorTypeFromJson(json, placehoders['errorTypePath']);
+	const testErrorMsg = _getErrorMsgFromJson(json, placeholders['errorMsgPath']);
+	const testErrorType = _getErrorTypeFromJson(json, placeholders['errorTypePath']);
 	const defaultHandler = ErrorLanguages.DEFAULT_HANDLER;
 	if(! defaultHandler) {
 		return false;

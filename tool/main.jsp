@@ -100,6 +100,14 @@
 					}
 					continue;
 				}
+				// 如果是其它代理设置, 需要把源地址指向调试服务器, 请修改以下代码完成
+				// if(value.startsWith('https://test.wetoband.com')) {
+				// 	const matches = value.match(/https?:\/\/.*?\//);
+				// 	if(matches.length > 0) {
+				// 		result[key] = value.replace(matches[0], 'http://127.0.0.1:8000/');
+				// 	}
+				// 	continue;
+				// }
 				result[key] = value;
 			}
 			return result;

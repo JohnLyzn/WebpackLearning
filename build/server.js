@@ -52,6 +52,13 @@ server.get('/', function(request, response) {
             target: config.dev.server.proxyPath,
             changeOrigin: true
         }));
+    } else if(config.dev.server.proxy) {
+        for(let option of config.dev.server.proxy) {
+            server.use(require('http-proxy-middleware')(option.proxyFor, {
+                target: option.proxyPath,
+                changeOrigin: true
+            }));
+        }
     }
     // handle fallback for HTML5 history API
     // server.use(require('connect-history-api-fallback')());

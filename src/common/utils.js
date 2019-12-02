@@ -11,13 +11,13 @@ const Utils = {
 		if(! rulesMap) {
 			return;
 		}
-		for(let name in rulesMap) {
+		for(var name in rulesMap) {
 			if(rulesMap.hasOwnProperty(name)) {
-				let rules = rulesMap[name];
+				var rules = rulesMap[name];
 				if(! Utils.isObject(rules)) {
 					throw new Error('不正确的规则对象: ' + rules);
 				}
-				let validator = DefaultValidators[name];
+				var validator = DefaultValidators[name];
 				if(! validator) {
 					if(! Utils.isObject(rules.validator)) {
 						throw new Error('非默认规则池的规则中不能没有指定validator: ' + rules);
@@ -31,8 +31,8 @@ const Utils = {
 				if(! (rules instanceof Array)) {
 					rules = [rules];
 				}
-				for(let i = 0; i < rules.length; i ++) {
-					let rule = rules[i];
+				for(var i = 0; i < rules.length; i ++) {
+					var rule = rules[i];
 					if(! rule.hasOwnProperty('fail')) {
 						rule.fail = false;
 					}
@@ -99,7 +99,7 @@ const Utils = {
 	* 判断某个对象是否数字
 	*/
 	isNumber: function(number) {
-		if(number instanceof Number || typeof number == 'number') {
+		if(number instanceof Number || typeof str == 'number') {
 			return true;
 		}
 		return false;
@@ -116,7 +116,7 @@ const Utils = {
 	/**
 	* 复制属性
 	*/
-	copyProperties: function(from, to, escapeVals) {
+	copyProperties: function(from, to) {
 		if(! from || ! to) {
 			return;
 		}
@@ -126,33 +126,27 @@ const Utils = {
 		if(typeof to != 'object') {
 			throw new Error('复制的结果必须为对象({...}或[...])');
 		}
-		const escapeValsAll = [undefined,null];
-		if(Utils.isArray(escapeVals)) {
-			escapeValsAll.push(...escapeVals);
-		} else if(escapeValsAll.indexOf(escapeVals) == -1) {
-			escapeValsAll.push(escapeVals);
-		}
-		for(let property in from) {
+		for(var property in from) {
 			if(! from.hasOwnProperty(property)) {
 				continue;
 			}
-			let fromVal = from[property];
-			if(escapeValsAll.indexOf(to[property]) == -1 
-				&& escapeValsAll.indexOf(fromVal) != -1) {
+			var formVal = from[property];
+			if((to[property] !== undefined && formVal === undefined)
+					|| (to[property] !== null && formVal === null)) {
 				continue;
 			}
-			if(fromVal && typeof fromVal == 'object') {
-				let copyObj = null;
-				if(fromVal instanceof Array) {
+			if(formVal && typeof formVal == 'object') {
+				var copyObj = null;
+				if(formVal instanceof Array) {
 					copyObj = [];
 				} else {
 					copyObj = {};
 				}
-				Utils.copyProperties(fromVal, copyObj, escapeVals);
+				Utils.copyProperties(formVal, copyObj);
 				to[property] = copyObj;
 				continue;
 			}
-			to[property] = fromVal;
+			to[property] = formVal;
 		}
 	},
 	/**
@@ -165,20 +159,20 @@ const Utils = {
 		if(! list || ! key) {
 			return;
 		}
-		let result = {};
-		for(let i = 0; i < list.length; i ++) {
-			let element = list[i];
-			if(Utils.isFunc(filter) && ! filter(element)) {
+		var result = {};
+		for(var i = 0; i < list.length; i ++) {
+			var element = list[i];
+			if(Utils.isFunc(filter) && ! filter(element, result)) {
 				continue;
 			}
-			let elementKey = element[key];
+			var elementKey = element[key];
 			if(Utils.isFunc(key)) {
 				elementKey = element[key(element)];
 			}
 			if(! Utils.isObject(element) || ! elementKey) {
 				continue;
 			}
-			let existElement = result[elementKey];
+			var existElement = result[elementKey];
 			if(! existElement) {
 				result[elementKey] = element;
 				continue;
@@ -200,10 +194,10 @@ const Utils = {
 		if(! map) {
 			return;
 		}
-		let result = [];
-		for(let key in map) {
+		var result = [];
+		for(var key in map) {
 			if(map.hasOwnProperty(key)) {
-				let val = map[key];
+				var val = map[key];
 				if(val) {
 					if(Utils.isFunc(filter) && ! filter(key, val)) {
 						continue;
@@ -223,8 +217,8 @@ const Utils = {
 		if(! map) {
 			return;
 		}
-		let result = [];
-		for(let key in map) {
+		var result = [];
+		for(var key in map) {
 			if(map.hasOwnProperty(key)) {
 				if(Utils.isFunc(filter) && ! filter(key, map[key])) {
 					continue;
@@ -244,11 +238,11 @@ const Utils = {
 		if(! mapOrList || ! key) {
 			return;
 		}
-		let result = [];
-		for(let key1 in mapOrList) {
+		var result = [];
+		for(var key1 in mapOrList) {
 			if(mapOrList.hasOwnProperty(key1)) {
-				let element = mapOrList[key1];
-				let resultElement = element[key];
+				var element = mapOrList[key1];
+				var resultElement = element[key];
 				if(Utils.isFunc(key)) {
 					resultElement = element[key(element)];
 				}
@@ -266,8 +260,8 @@ const Utils = {
 		if(! Utils.isArray(list1) || ! Utils.isArray(list2)) {
 			throw new Error('合并的必须是数组');
 		}
-		for(let i = 0; i < list2.length; i ++) {
-			let val = list2[i];
+		for(var i = 0; i < list2.length; i ++) {
+			var val = list2[i];
 			if(val === undefined && val === null) {
 				continue;
 			}
@@ -290,18 +284,26 @@ const Utils = {
 		if(Utils.isString(keys)) {
 			keys = [keys];
 		}
-		let result = true;
-		for(let i = 0; i < keys.length; i ++) {
-			let key = keys[i];
-			let has = map.hasOwnProperty(key);
-			if(! has && ! isAny) {
-				result = false;
-				break;
-			} else if(has && isAny) {
-				break;
+		for(var i = 0; i < keys.length; i ++) {
+			if(! keys[i]) {
+				continue;
 			}
+			var includeKeys = keys[i].split('\|');
+			var has = false;
+			for(var j = 0; j < includeKeys.length; j ++) {
+				if(! includeKeys[j]) {
+					continue;
+				}
+				has = map.hasOwnProperty(includeKeys[j]);
+				if(has && isAny) {
+					return true;
+				}
+			}
+			if(! has && ! isAny) {
+				return false;
+			} 
 		}
-		return result;
+		return true;
 	},
 	/**
 	* 对类数组对象进行遍历操作
@@ -317,13 +319,13 @@ const Utils = {
 			return;
 		}
 		if(Utils.isArray(obj)) {
-			for(let i = 0; i < obj.length; i ++) {
+			for(var i = 0; i < obj.length; i ++) {
 				const element = obj[i];
 				callback(element, i, obj);
 			}
 			return;
 		}
-		for(let key in obj) {
+		for(var key in obj) {
 			if(! obj.hasOwnProperty(key)) {
 				continue;
 			}
@@ -377,12 +379,12 @@ const Utils = {
 		if(! Utils.isString(format)) {
 			return '';
 		}
-		let isSingleVal = ! Utils.isObject(context);
-		let matches = null, lastFormat = null;
+		var isSingleVal = ! Utils.isObject(context);
+		var matches = null, lastFormat = null;
 		while((matches = format.match(/{.*?}/)) && matches.length > 0) {
-			for(let i = 0; i < matches.length; i ++) {
-				let match = matches[i];
-				let val = (isSingleVal ? context : context[match.replace(/{|}/g, '')]) || '';
+			for(var i = 0; i < matches.length; i ++) {
+				var match = matches[i];
+				var val = (isSingleVal ? context : context[match.replace(/{|}/g, '')]) || '';
 				format = format.replace(new RegExp(match, 'g'), val);
 			}
 			if(lastFormat == format) {
@@ -412,9 +414,9 @@ const Utils = {
 	* @return {String} 临时ID
 	*/
 	generateTemporyId: function() {
-		let s = [];
-		let hexDigits = "0123456789abcdef";
-		for (let i = 0; i < 36; i++) {
+		var s = [];
+		var hexDigits = "0123456789abcdef";
+		for (var i = 0; i < 36; i++) {
 			s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
 		}
 		s[14] = "4";  // bits 12-15 of the time_hi_and_version field to 0010
@@ -435,14 +437,10 @@ const Utils = {
 		}
 		if(Utils.isObject(obj)) {
 			let queryStr = '';
-			Utils.forEach(obj, (value, key) => {
-				if(Utils.isString(value)) {
-					queryStr += '&' + key + '=' + value;
-					return;
-				}
-				queryStr += '&' + key + '=' + encodeURI(JSON.stringify(value));
-			});
-			return queryStr;
+			for(let key of obj) {
+				queryStr += '&' + obj[key];
+			}
+			return queryStr.substr(1, queryStr.length);
 		}
 		return '';
 	},

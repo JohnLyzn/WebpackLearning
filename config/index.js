@@ -24,6 +24,8 @@ module.exports = {
             proxyFor: [ //代理路径
                 '/LiveVideoViewTool',
             ],
+            // 多个域的代理配置
+            // proxy: [{proxyPath:'http://test.wetoband.com/',proxyFor:['/aaa']}]
         }
     },
     prod: {

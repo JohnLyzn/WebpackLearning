@@ -450,9 +450,9 @@ export const shareToWx = (config) => {
 		new QRCode(config.dom, {
 			text: generateShareWxUrl({
 				shareType: 'href',
-				url: base64.encode(encodeURIComponent(config.url)),
-				title: base64.encode(config.title),
-				desc: base64.encode(config.content),
+				url: encodeURIComponent(base64.encode(config.url)),
+				title: encodeURIComponent(base64.encode(config.title)),
+				desc: encodeURIComponent(base64.encode(config.content)),
 			}),
 			width: config.width || 320,
 			height: config.height || 320,
