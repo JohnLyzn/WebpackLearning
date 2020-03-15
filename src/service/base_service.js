@@ -313,7 +313,6 @@ export default class BaseService {
 			}
 			return json;
 		};
-		
 		// 默认不从缓存查找, 外部指定fromCache才从缓存中查找
 		if(params.fromCache) {
 			if(! params.searches) {
@@ -567,32 +566,38 @@ export default class BaseService {
 		if(! detailFetchPlaceholders) {
 			return false;
 		}
+		const detailFetchPlaceholderCopyKeys = ['objId', 'objIds', 'objType', 'model', 'url', 'ajaxParams'];
+		const queryPlaceholders = {};
+		for(let copyKey of detailFetchPlaceholderCopyKeys) {
+			if(! detailFetchPlaceholders.hasOwnProperty(copyKey)
+				|| ! detailFetchPlaceholders[copyKey]) {
+				continue;
+			}
+			queryPlaceholders[copyKey] = detailFetchPlaceholders[copyKey];
+		}
 		return await this.queryTemplate({
 			fromCache: detailFetchPlaceholders['fromCache'],
 		}, {
 			onSuccess: (objs) => {
-				let isSingleResult = detailFetchPlaceholders['singleResult'];
+				let singleResult = detailFetchPlaceholders['singleResult'];
 				if(detailFetchPlaceholders.hasOwnProperty('objId')) {
-					isSingleResult = true;
+					singleResult = true;
 				}
 				if(! Utils.isArray(objs)) {
 					objs = [objs];
 				}
 				if(Utils.isFunc(callbacks.onBeforeUpdateCache)) {
-					callbacks.onBeforeUpdateCache(isSingleResult ? objs[0] : objs, json);
+					callbacks.onBeforeUpdateCache(singleResult ? objs[0] : objs, json);
 				}
 				let cacheable = this.handleCacheByRule('set', detailFetchPlaceholders, {objs: objs});
+				if(singleResult === undefined) {
+					singleResult = cacheable.singleResult;
+				}
 				if(Utils.isFunc(callbacks.onSuccess)) {
-					callbacks.onSuccess(isSingleResult ? cacheable.objs[0] : cacheable.objs, cacheable.parentObj, json);
+					callbacks.onSuccess(singleResult ? cacheable.objs[0] : cacheable.objs, cacheable.parentObj, json);
 				}
 			},
-		}, {
-			objId: detailFetchPlaceholders['objId'],
-			objIds: detailFetchPlaceholders['objIds'],
-			objType: detailFetchPlaceholders['objType'],
-			url: detailFetchPlaceholders['url'],
-			ajaxParams: detailFetchPlaceholders['ajaxParams'],
-		});
+		}, queryPlaceholders);
 	};
 };
 
@@ -665,11 +670,10 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 		callbacks.onStart();
 	}
 	// 发起请求
-	const baseUrl = getBaseUrl();
 	let url = placeholders['url'];
 	let method = placeholders['_ajaxMethod'] || placeholders['method'];
 	if(! url) {
-		url = baseUrl;
+		url = getBaseUrl();
 	} else {
 		if(Utils.isArray(url)) {
 			const urlArray = url;
@@ -677,7 +681,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 			url = urlArray[1];
 		}
 		if(url.startsWith('/')) {
-			url = baseUrl + url;
+			url = getBaseUrl() + url;
 		}
 	}
 	// 获取请求结果
@@ -686,6 +690,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 		type: method,
 		data: ajaxParams,
 		dataType: 'json',
+		headers: placeholders['headers'],
 		error: (response) => {
 			// 如果有任务, 则标记任务已失败
 			if(task) {
@@ -713,16 +718,12 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 			}
 		},
 	});
-	if(! json) {
-		return;
-	}
-	// 成功处理
 	// 如果有任务, 则标记任务已完成
 	if(task) {
 		_markTaskStatus(task, TASK_STATUS__DONE);
 	}
 	// 设置分页总数
-	if(params.pagination) {
+	if(json && params.pagination) {
 		let total = _getTotalFromJson(json, placeholders['totalPath']);
 		if(total !== undefined) {
 			_setPaginationTotal(params.pagination, total, callbacks);
@@ -730,10 +731,10 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	}
 	// 内部定义回调 - 请求成功处理
 	let ajaxSuccessFn = placeholders['_ajaxSuccessFn'];
-	let sucessHandleResult;
+	let handleResult;
 	if(Utils.isFunc(ajaxSuccessFn)) {
-		sucessHandleResult = await ajaxSuccessFn(json);
-		if(sucessHandleResult === false) { /* 返回false表示失败 */
+		handleResult = (json && await ajaxSuccessFn(json)) || false;
+		if(handleResult === false) { /* 返回false表示失败 */
 			// 通用错误识别和接口错误识别, 返回true说明被处理了
 			if(Utils.isFunc(callbacks.onFail) && ! callbacks.onFail.default) {
 				callbacks.onFail(json.msg || placeholders['errorMsg'], json);
@@ -745,7 +746,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 			if(Utils.isFunc(retryFn)) {
 				params.preventAjax = true;
 				params.fromCache = true;
-				sucessHandleResult = await retryFn();
+				handleResult = await retryFn();
 			}
 		}
 	}
@@ -753,7 +754,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	if(Utils.isFunc(callbacks.onEnd)) {
 		callbacks.onEnd();
 	}
-	return sucessHandleResult;
+	return handleResult;
 };
 
 /**
@@ -1039,6 +1040,12 @@ const _setPagination = (pagination, ajaxParams, callbacks) => {
 		};
 		command = 'reset';
 	}
+	let currentTime = new Date().getTime();
+	if(oldPagination.$lastPagingTime 
+		&& currentTime - oldPagination.$lastPagingTime <= Config.MIN_PAGING_INTERVEL) {
+		return false;
+	}
+	oldPagination.$lastPagingTime = currentTime;
 	switch(command) {
 	case 'next':
 		if(pagination.$pagingEnd) {

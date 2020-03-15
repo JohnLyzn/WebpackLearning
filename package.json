@@ -12,7 +12,7 @@
 	"keywords": [
 		"wtbtool"
 	],
-	"author": "linjie",
+	"author": "fykj",
 	"license": "ISC",
 	"devDependencies": {
 		"@babel/core": "^7.5.5",

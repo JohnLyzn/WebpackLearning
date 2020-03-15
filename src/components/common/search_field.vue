@@ -52,8 +52,10 @@
                 this.$emit('input', newValue);
                 /* 由非空转空时自动触发一次搜索, 同时重置搜索 */
                 if(! this.isSameAsLastSearch && ! newValue && oldValue) {
-                    this.search();
                     this._endSearching();
+                    this.$nextTick(() => {
+                        this.search();
+                    });
                 }
             },
             value: function(newValue, oldValue) {

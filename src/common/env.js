@@ -419,7 +419,7 @@ const genterateDefaultQrCodeDom = () => {
 	closeBtnDom.setAttributeNode(classAttr3);
 	qrCodeDom.appendChild(closeBtnDom);
 	// 关闭事件
-	closeBtnDom.addEventListener('click', () => {
+	containerDom.addEventListener('click', () => {
 		containerDom.style.display = 'none';
 	});
 	// 追加到body下

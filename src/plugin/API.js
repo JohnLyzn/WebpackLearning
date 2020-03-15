@@ -1,32 +1,3 @@
-//try {
-//	document.domain = 'wetoband.com';
-//} catch (e) {
-//	console.log(e);
-//}
-var appAPI = {
-	fire:function(webview, eventName, param){
-		var action = 'var APIReadyEvent = new CustomEvent("' + eventName + '", {detail:' + JSON.stringify(param) + '});';
-		action += 'window.dispatchEvent(APIReadyEvent);';
-		webview.evalJS(action);
-	}	
-};
-
-if(window.parent.plus){
-	window.plus = window.parent.plus;
-	var APIReadyEvent = new Event('APIReady', {});
-	document.dispatchEvent(APIReadyEvent);
-}else{
-	if (window.plus) {
-		var APIReadyEvent = new Event('APIReady', {});
-		document.dispatchEvent(APIReadyEvent);
-	} else {
-		document.addEventListener("plusready", function() {
-			var APIReadyEvent = new Event('APIReady', {});
-			document.dispatchEvent(APIReadyEvent);
-		}, false);
-	}
-}
-
 /**
  * 调用app上的方法
  * @param {Object} name app上的事件名称
@@ -35,22 +6,38 @@ if(window.parent.plus){
  * @param {Object} fireWebviewID 要通知的webview的id，可为空，为空时默认通知的是index
  */
 export function callAppAPI(name, args, callBackEventName, fireWebviewID) {
-	var webView = null;
-	if(fireWebviewID != undefined && fireWebviewID != null){
-		webView = plus.webview.getWebviewById(fireWebviewID);
-	}else{
-		webView = plus.webview.getWebviewById('index');
+	// var webView = null;
+	// if(fireWebviewID != undefined && fireWebviewID != null){
+	// 	webView = plus.webview.getWebviewById(fireWebviewID);
+	// }else{
+	// 	webView = plus.webview.getWebviewById('index');
+	// }
+	// if(webView == null || webView == undefined){
+	// 	webView = plus.webview.getLaunchWebview();
+	// }
+	// var currentWebviewID = plus.webview.currentWebview().id;
+	var _plus = null;
+	if(window.plus){
+		_plus = window.plus;
 	}
-	if(webView == null || webView == undefined){
-		webView = plus.webview.getLaunchWebview();
+	if(window.top.plus){
+		_plus = window.top.plus;
 	}
-	var currentWebviewID = plus.webview.currentWebview().id;
-	appAPI.fire(webView,'api:callAPI',{
-		name: name, 
-		args: args, 
-		callBackEventName: callBackEventName, 
-		toolWebviewID: currentWebviewID
-	});
+	if(window.parent.plus){
+		_plus = window.parent.plus;
+	}
+	if(_plus == null || !_plus){
+		alert("无法获取Plus");
+		return;
+	}
+	if(!_plus.wtbAppAPIPlugin){
+		alert("无法获取wtbAppAPIPlugin");
+	}
+	try{
+		_plus.wtbAppAPIPlugin.callApi(name,args);
+	}catch(e){
+		alert(e);
+	}
 };
 
 export function quitToolPageAPI() {

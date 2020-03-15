@@ -1,11 +1,15 @@
-import {DefaultValidators} from 'common/constants';
+import { DefaultValidators } from 'common/constants';
 
 /**
- * 常用的工具方法(从旧的拷贝过来的, 需要新的以后改)
+ * 常用的工具方法
  */
 const Utils = {
+
 	/**
-	* 验证
+	* 验证变量是否符合规则
+	* @param {Object} val 检查的变量
+	* @param {Object} rulesMap 检查的规则集, 格式参考Constant.DefaultValidators
+	* @return {Boolean} 是否有效
 	*/
 	validate: function(val, rulesMap) {
 		if(! rulesMap) {
@@ -50,6 +54,7 @@ const Utils = {
 	/**
 	* 检查一个变量是否有效
 	* @param {Object} variable 检查的变量
+	* @return {Boolean} 是否有效
 	*/
 	isValidVariable: function(variable){
 		if(variable === null || variable === undefined 
@@ -61,6 +66,8 @@ const Utils = {
 	},
 	/**
 	* 判断某个对象是否是函数
+	* @param {Object} func 检查的对象
+	* @return {Boolean} 是否是函数
 	*/
 	isFunc: function(func) {
 		if(typeof func == 'function') {
@@ -70,6 +77,8 @@ const Utils = {
 	},
 	/**
 	* 判断某个对象是否是对象
+	* @param {Object} obj 检查的对象
+	* @return {Boolean} 是否是对象
 	*/
 	isObject: function(obj) {
 		if(obj instanceof Object || typeof obj == 'object') {
@@ -79,6 +88,8 @@ const Utils = {
 	},
 	/**
 	* 判断某个对象是否是数组
+	* @param {Object} arr 检查的对象
+	* @return {Boolean} 是否是数组
 	*/
 	isArray: function(arr) {
 		if(arr instanceof Array || (arr && arr.constructor.toString().indexOf('function Array() {') != -1)) {
@@ -88,6 +99,8 @@ const Utils = {
 	},
 	/**
 	* 判断某个对象是否是字符串
+	* @param {Object} str 检查的对象
+	* @return {Boolean} 是否是字符串
 	*/
 	isString: function(str) {
 		if(str instanceof String || typeof str == 'string') {
@@ -97,15 +110,20 @@ const Utils = {
 	},
 	/**
 	* 判断某个对象是否数字
+	* @param {Object} number 检查的对象
+	* @return {Boolean} 是否是数字
 	*/
 	isNumber: function(number) {
-		if(number instanceof Number || typeof str == 'number') {
+		if(number instanceof Number || typeof number == 'number') {
 			return true;
 		}
 		return false;
 	},
 	/**
 	* 判断某个对象是否是指定类型实例
+	* @param {Object} obj 检查的对象
+	* @param {Object} type 指定类型实例
+	* @return {Boolean} 对象是否是指定类型实例
 	*/
 	isInstance: function(obj, type) {
 		if(obj instanceof type || (obj && type && obj.constructor.toString() == type.toString())) {
@@ -115,6 +133,8 @@ const Utils = {
 	},
 	/**
 	* 复制属性
+	* @param {Object} from 复制源对象
+	* @param {Object} to 内容复制写入到对象
 	*/
 	copyProperties: function(from, to) {
 		if(! from || ! to) {
@@ -130,23 +150,23 @@ const Utils = {
 			if(! from.hasOwnProperty(property)) {
 				continue;
 			}
-			var formVal = from[property];
-			if((to[property] !== undefined && formVal === undefined)
-					|| (to[property] !== null && formVal === null)) {
+			var fromVal = from[property];
+			if((to[property] !== undefined && fromVal === undefined)
+					|| (to[property] !== null && fromVal === null)) {
 				continue;
 			}
-			if(formVal && typeof formVal == 'object') {
+			if(fromVal && typeof fromVal == 'object') {
 				var copyObj = null;
-				if(formVal instanceof Array) {
+				if(fromVal instanceof Array) {
 					copyObj = [];
 				} else {
 					copyObj = {};
 				}
-				Utils.copyProperties(formVal, copyObj);
+				Utils.copyProperties(fromVal, copyObj);
 				to[property] = copyObj;
 				continue;
 			}
-			to[property] = formVal;
+			to[property] = fromVal;
 		}
 	},
 	/**
@@ -255,6 +275,7 @@ const Utils = {
 	* 把第二个List中不在第一个List的元素添加到第一个List的结尾, 并且去掉重复的部分
 	* @param {Array} list1 数组1
 	* @param {Array} list2 数组2
+	* @return {Array} List
 	*/
 	combindListWithoutRepeat: function(list1, list2) {
 		if(! Utils.isArray(list1) || ! Utils.isArray(list2)) {
@@ -275,7 +296,7 @@ const Utils = {
 	* @param {Object} map 需要进行判断的目标对象
 	* @param {String | String Array} keys 对象属性名称
 	* @param {Boolean} isAny 是否是有一个出现就返回true
-	* @return {Boolean} 是否所有指定的key
+	* @return {Boolean} 是否指定的key在对象中出现
 	*/
 	hasKeys: function(map, keys, isAny) {
 		if(! map || ! keys) {
@@ -295,8 +316,11 @@ const Utils = {
 					continue;
 				}
 				has = map.hasOwnProperty(includeKeys[j]);
-				if(has && isAny) {
-					return true;
+				if(has) {
+					if(isAny) {
+						return true;
+					}
+					break;
 				}
 			}
 			if(! has && ! isAny) {
@@ -396,9 +420,10 @@ const Utils = {
 	},
 	/**
 	* 截取数组中的元素作为新的数组
-	* @param {String} format 格式字符串, 如{xxx}
-	* @param {Object} context 某个上下文, 包含替换的名称对应的属性和值
-	* @return {Boolean} 是否具备该事件
+	* @param {String} arrayLike 类数组, 如Array或arguments
+	* @param {Number} start 截取开始索引下标值
+	* @param {Number} end 截取结束索引下标值
+	* @return {Array} 截取到的数组
 	*/
 	sliceArrayLike: function(arrayLike, start, end) {
 		if(! arrayLike) {
@@ -415,18 +440,39 @@ const Utils = {
 	*/
 	generateTemporyId: function() {
 		var s = [];
-		var hexDigits = "0123456789abcdef";
+		var hexDigits = '0123456789abcdef';
 		for (var i = 0; i < 36; i++) {
 			s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
 		}
-		s[14] = "4";  // bits 12-15 of the time_hi_and_version field to 0010
+		s[14] = '4';  // bits 12-15 of the time_hi_and_version field to 0010
 		s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1);  // bits 6-7 of the clock_seq_hi_and_reserved to 01
-		s[8] = s[13] = s[18] = s[23] = "-";
-	
-		return s.join("");
+		s[8] = s[13] = s[18] = s[23] = '-';
+		return s.join('');
+	},
+	/**
+	* 生成字符串的hash码
+	* @param {String} str 目标字符串
+	* @return {String} 字符串的hash码
+	*/
+	hashCode: function(str) {
+		if(! Utils.isString(str)) {
+			return 0;
+		}
+		let hash = 0;
+		if (str.length == 0) {
+			return hash
+		};
+		for (let i = 0; i < str.length; i ++) {
+			let char = str.charCodeAt(i);
+			hash = ((hash << 5) - hash) + char;
+			hash = hash & hash; // Convert to 32bit integer
+		}
+		return hash;
 	},
 	/**
 	 * 转换为查询参数字符串
+	 * @param {Object} obj 查询参数的对象
+	 * @return {String} 查询参数字符串, 如: 传入{a:1,b:2}返回&a=1&b=2
 	 */
 	toQueryStr: function(obj) {
 		if(! Utils.isValidVariable(obj)) {
@@ -437,10 +483,14 @@ const Utils = {
 		}
 		if(Utils.isObject(obj)) {
 			let queryStr = '';
-			for(let key of obj) {
-				queryStr += '&' + obj[key];
-			}
-			return queryStr.substr(1, queryStr.length);
+			Utils.forEach(obj, (value, key) => {
+				if(Utils.isString(value)) {
+					queryStr += '&' + key + '=' + value;
+					return;
+				}
+				queryStr += '&' + key + '=' + encodeURI(JSON.stringify(value));
+			});
+			return queryStr;
 		}
 		return '';
 	},
