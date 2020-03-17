@@ -7,4 +7,17 @@
     &>.mu-loading-wrap {
         z-index: inherit;
     }
+    .mu-circular-progress {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+.mu-load-more {
+    min-height: 130px;
+}
+.mu-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }

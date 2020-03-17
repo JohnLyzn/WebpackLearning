@@ -43,7 +43,6 @@ const VueMovable = {
         Vue.directive('movable', {
             bind: function (el, binding) {
                 const triggerEl = getTriggerEl(el, binding);
-                console.log(triggerEl);
                 if(! triggerEl) {
                     throw new Error('无效的拖动触发源');
                 }
