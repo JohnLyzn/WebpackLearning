@@ -3,9 +3,21 @@ import Utils from 'common/utils';
 
 const LISTENING_ELS = [];
 
+const isEventIntervalValid = (el, e) => {
+    if(! e.timeStamp) {
+        return false;
+    }
+    if(e.timeStamp - el.VBACK_EVENT_ACT_TIME < 1000) {
+        return false;
+    }
+    el.VBACK_EVENT_STATES.lastTime = e.timeStamp;
+    return true;
+};
+
 const VBACK_EVENT_GLB_LISTERNER = (e) => {
     for(let el of LISTENING_ELS) {
-        if(el.VBACK_EVENT_STATES.canceling
+        if(! isEventIntervalValid(el, e)
+            || el.VBACK_EVENT_STATES.canceling
             || el.VBACK_EVENT_STATES.poping) {
             Utils.stopBubble(e);
             continue;
@@ -14,7 +26,7 @@ const VBACK_EVENT_GLB_LISTERNER = (e) => {
         if(actPopState(el)) {
             Utils.stopBubble(e);
         } else {
-            location.replace('#')
+            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回');
         }
         _nextTick(() => {
             el.VBACK_EVENT_STATES.poping = false;
@@ -56,6 +68,7 @@ const _init = (el) => {
     el.VBACK_EVENT_QUEUE = [];
     el.VBACK_EVENT_KEYS = [];
     el.VBACK_EVENT_STATES = {
+        lastTime: 0,
         canceling: false,
         poping: false,
     };
@@ -145,6 +158,7 @@ const initWatchers = (el, context) => {
 const actPushState = (backObj) => {
     console.log('v-back为' + backObj.key + '压入空历史记录等待返回事件触发, 目前history长度为' + window.history.length);
     window.history.pushState(null, null, '#');
+    window.history.pushState(null, null, '#'); /* 有些平台如android内置浏览器会出现一次不够的情况, 点击一次触发两次popstate */
     backObj.$statePoped = false;
     backObj.$statePushed = true;
     if(Utils.isFunc(backObj.handleIn)) {
@@ -164,6 +178,7 @@ const actPopState = (el) => {
             || backObj.$statePoped) {
             continue;
         }
+        backObj.$statePushed = false;
         backObj.$statePoped = true;
         if(Utils.isFunc(backObj.handleOut)) {
             console.log('v-back返回事件被触发, 为' + backObj.key + '调用out回调, 目前history长度为' + window.history.length);
@@ -206,7 +221,14 @@ const bindPopStateEventListener = (el) => {
     }
     LISTENING_ELS.push(el);
     console.log('v-back初始化监听popstate作为返回事件处理, 目前history长度为' + window.history.length);
-    window.addEventListener('popstate', VBACK_EVENT_GLB_LISTERNER); /* 同名函数添加监听不会重复 */
+    _nextTick(() => {
+        /* 同名函数添加监听不会重复 */
+        if (window.addEventListener) { //所有主流浏览器，除了 IE 8 及更早 IE版本
+            window.addEventListener('popstate', VBACK_EVENT_GLB_LISTERNER); 
+        } else if (window.attachEvent) { // IE 8 及更早 IE 版本
+            window.attachEvent('onpopstate', VBACK_EVENT_GLB_LISTERNER);
+        }
+    });
 };
 
 const unbindPopStateEventListener = (el) => {
