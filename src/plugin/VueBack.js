@@ -15,7 +15,8 @@ const isEventIntervalValid = (el, e) => {
 };
 
 const VBACK_EVENT_GLB_LISTERNER = (e) => {
-    for(let el of LISTENING_ELS) {
+    for(let i = LISTENING_ELS.length - 1; i > -1; i --) {
+        const el = LISTENING_ELS[i];
         if(! isEventIntervalValid(el, e)
             || el.VBACK_EVENT_STATES.canceling
             || el.VBACK_EVENT_STATES.poping) {
@@ -26,7 +27,10 @@ const VBACK_EVENT_GLB_LISTERNER = (e) => {
         if(actPopState(el)) {
             Utils.stopBubble(e);
         } else {
-            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回');
+            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回, 需清理' + el.VBACK_EVENT_STATES.count);
+            if(el.VBACK_EVENT_STATES.count > 0) {
+                window.history.go(- el.VBACK_EVENT_STATES.count);
+            }
         }
         _nextTick(() => {
             el.VBACK_EVENT_STATES.poping = false;
@@ -69,6 +73,7 @@ const _init = (el) => {
     el.VBACK_EVENT_KEYS = [];
     el.VBACK_EVENT_STATES = {
         lastTime: 0,
+        count: 0,
         canceling: false,
         poping: false,
     };
@@ -112,6 +117,7 @@ const initBackObj = (el, isRoot, key, inFn, outFn) => {
         handleIn: inFn,
         handleOut: outFn,
         $root: isRoot,
+        $el: el,
         $context: '',
         $watched: false,
         $statePushed: false,
@@ -135,7 +141,7 @@ const initWatchers = (el, context) => {
         // 如果为根返回事件对象, 初始化时为它设置一次PushStateTrick
         if(backObj.$root) {
             console.log('v-back根事件被指定');
-            actPushState(backObj);
+            actPushState(el, backObj);
             backObj.$watched = true;
             continue;
         }
@@ -145,20 +151,27 @@ const initWatchers = (el, context) => {
         }
         context.$watch(backObj.key, (newVal) => {
             if(newVal) {
-                actPushState(backObj);
+                actPushState(el, backObj);
                 return;
             }
             cancelPushStateTrick(el, backObj);
         });
         console.log('v-back开始监听' + backObj.key);
         backObj.$watched = true;
+        // 如果本来就是true就直接设置空历史记录
+        const parent = _parentOfKey(context, backObj.key);
+        const argKey = _keyOf(backObj.key);
+        if(parent[argKey]) {
+            actPushState(el, backObj);
+        }
     }
 };
 
-const actPushState = (backObj) => {
+const actPushState = (el, backObj) => {
     console.log('v-back为' + backObj.key + '压入空历史记录等待返回事件触发, 目前history长度为' + window.history.length);
     window.history.pushState(null, null, '#');
     window.history.pushState(null, null, '#'); /* 有些平台如android内置浏览器会出现一次不够的情况, 点击一次触发两次popstate */
+    el.VBACK_EVENT_STATES.count ++;
     backObj.$statePoped = false;
     backObj.$statePushed = true;
     if(Utils.isFunc(backObj.handleIn)) {
@@ -203,14 +216,16 @@ const cancelPushStateTrick = (el, backObj) => {
         || ! backObj.$statePushed) {
         return;
     }
-    console.log('v-back取消空history记录, 目前history长度为' + window.history.length);
-    if(! backObj.$statePoped) {
-        el.VBACK_EVENT_STATES.canceling = true;
-        window.history.go(-1);
-        _nextTick(() => {
-            el.VBACK_EVENT_STATES.canceling = false;
-        });
-    }
+    console.log('v-back为' + backObj.key + '取消空历史记录, 目前history长度为' + window.history.length);
+    // if(! backObj.$statePoped) {
+    //     console.log('v-back检测到' + backObj.key + '已压入空历史未使用, 将进行回退, 目前history长度为' + window.history.length);
+    //     el.VBACK_EVENT_STATES.canceling = true;
+    //     // window.history.go(-1);
+    //     window.history.replaceState(null, null, '#');
+    //     _nextTick(() => {
+    //         el.VBACK_EVENT_STATES.canceling = false;
+    //     });
+    // }
     backObj.$statePushed = false;
     backObj.$statePoped = false;
 };
@@ -255,9 +270,9 @@ const VueBack = {
                     initBackObj(el, ...translated);
                 }
                 bindPopStateEventListener(el);
-            },
-            componentUpdated: function(el, binding, vnode) {
-                initWatchers(el, vnode.context);
+                _nextTick(() => {
+                    initWatchers(el, vnode.context);
+                });
             },
             unbind: function(el, binding, vnode) {
                 _nextTick(() => {
