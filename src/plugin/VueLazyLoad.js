@@ -528,6 +528,25 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
     }
   };
   
+  var handleLazySrc = function(listener) {
+    if(listener.src || !listener.lazySrcHandler) {
+      return false;
+    }
+    var callback = function(newSrc) {
+      callbackUsed = true;
+      listener.src = newSrc;
+      if(isObject(listener.options)) {
+        listener.options.src = newSrc;
+      }
+      listener.load();
+    };
+    var callbackUsed = false;
+    var newSrc = listener.lazySrcHandler(callback);
+    if(callbackUsed || !newSrc || kindOf(newSrc) !== 'string') return;
+    callback(newSrc);
+    return true;
+  };
+
   var loadImageAsync = function loadImageAsync(item, resolve, reject) {
     var image = new Image();
     if (!item || !item.src) {
@@ -642,6 +661,9 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
     }, {
       key: 'hashCode',
       value: function hashCode(str) {
+          if(! str) {
+            return;
+          }
           str = str.toString();
           var hash = 0;
           if (str.length == 0) {
@@ -658,6 +680,9 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       key: 'has',
       value: function has(url) {
         var key = this.hashCode(url);
+        if(! key) {
+          return false;
+        }
         return this._caches.indexOf(key) > -1;
       }
     }, {
@@ -665,6 +690,9 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       value: function add(url, image) {
           if (this.has(url)) return;
           var key = this.hashCode(url);
+          if(! key) {
+            return;
+          }
           this._caches.push(key);
           this._contentCaches[key] = this.dataUrl(image);
           if (this._caches.length > this.options.max) {
@@ -675,6 +703,9 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       key: 'get',
       value: function get(url) {
           var key = this.hashCode(url);
+          if(! key) {
+            return;
+          }
           return this._contentCaches[key];
       }
     }, {
@@ -698,6 +729,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
     function ReactiveListener(_ref) {
       var el = _ref.el,
           src = _ref.src,
+          lazySrcHandler = _ref.lazySrcHandler,
           error = _ref.error,
           loading = _ref.loading,
           bindType = _ref.bindType,
@@ -709,6 +741,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
   
       this.el = el;
       this.src = src;
+      this.lazySrcHandler = lazySrcHandler;
       this.error = error;
       this.loading = loading;
       this.bindType = bindType;
@@ -781,11 +814,13 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       key: 'update',
       value: function update(_ref2) {
         var src = _ref2.src,
+            handleLazySrc =_ref2.handleLazySrc,
             loading = _ref2.loading,
             error = _ref2.error;
   
         var oldSrc = this.src;
         this.src = src;
+        this.handleLazySrc = handleLazySrc;
         this.loading = loading;
         this.error = error;
         this.filter();
@@ -888,7 +923,11 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
   
           _this3.options.adapter['beforeLoad'] && _this3.options.adapter['beforeLoad'](_this3, _this3.options);
           _this3.record('loadStart');
-  
+          
+          if(handleLazySrc(_this3)) {
+            return;
+          }
+
           loadImageAsync({
             src: _this3.src
           }, function (data) {
@@ -958,6 +997,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       value: function $destroy() {
         this.el = null;
         this.src = null;
+        this.lazySrcHandler = null;
         this.error = null;
         this.loading = null;
         this.bindType = null;
@@ -1098,6 +1138,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
   
           var _valueFormatter2 = this._valueFormatter(binding.value),
               src = _valueFormatter2.src,
+              lazySrcHandler = _valueFormatter2.lazySrcHandler,
               loading = _valueFormatter2.loading,
               error = _valueFormatter2.error;
   
@@ -1125,6 +1166,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
               loading: loading,
               error: error,
               src: src,
+              lazySrcHandler: lazySrcHandler,
               elRenderer: _this._elRenderer.bind(_this),
               options: _this.options,
               imageCache: _this._imageCache
@@ -1495,6 +1537,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           var src = value;
           var loading = this.options.loading;
           var error = this.options.error;
+          var lazySrcHandler = void 0;
   
           // value is object
           if (isObject(value)) {
@@ -1502,11 +1545,17 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
             src = value.src;
             loading = value.loading || this.options.loading;
             error = value.error || this.options.error;
+
+          }
+          if(kindOf(value) === 'function') {
+            src = undefined;
+            lazySrcHandler = value;
           }
           return {
             src: src,
             loading: loading,
-            error: error
+            error: error,
+            lazySrcHandler: lazySrcHandler,
           };
         }
       }]);
@@ -1686,7 +1735,8 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         return h(this.tag, {
           attrs: {
             src: this.renderSrc
-          }
+          },
+          on: this.$listeners,
         }, this.$slots.default);
       },
       data: function data() {
@@ -1704,7 +1754,8 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
             attempt: 0
           },
           rect: {},
-          renderSrc: ''
+          renderSrc: '',
+          lazySrcHandler: null
         };
       },
   
@@ -1732,6 +1783,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         init: function init() {
           var _lazyManager$_valueFo = lazyManager._valueFormatter(this.src),
               src = _lazyManager$_valueFo.src,
+              lazySrcHandler = _lazyManager$_valueFo.lazySrcHandler,
               loading = _lazyManager$_valueFo.loading,
               error = _lazyManager$_valueFo.error;
   
@@ -1739,6 +1791,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           this.options.src = src;
           this.options.error = error;
           this.options.loading = loading;
+          this.lazySrcHandler = lazySrcHandler;
           this.renderSrc = this.options.loading;
         },
         getRect: function getRect() {
@@ -1759,6 +1812,10 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
             return;
           }
           var src = this.options.src;
+          if(!src && ! handleLazySrc(this)) {
+            this.$emit('lazy-src', );
+            return;
+          }
           loadImageAsync({ src: src }, function (_ref) {
             var src = _ref.src;
   
