@@ -11,7 +11,7 @@ const TASK_STATUS__DONE = 1;
 const TASK_STATUS__FAIL = 2;
 
 /**
- * 基础数据服务(从旧的拷贝过来的, 需要新的以后改)
+ * 基础数据服务
  */
 export default class BaseService {
 
@@ -121,7 +121,7 @@ export default class BaseService {
 				get: (placeholders) => {
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType'], placeholders);
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType'], placeholders);
 						// throw new Error(parentObjType.displayName + '[' + parentObjId + ']未初始化数据');
 					}
 					let objs = this.getObjsInCacheMap(parentObj[placeholders['subObjIdsCacheKey']], placeholders['subObjType']);
@@ -144,7 +144,7 @@ export default class BaseService {
 					}, cachable);
 					let parentObj = this.getObjInCacheMap(placeholders['parentObjId'], placeholders['parentObjType']);
 					if(! parentObj) {
-						parentObj = this._generateUnfetchObjAndCache(parentObjId, placeholders['parentObjType'], placeholders);
+						parentObj = this._generateUnfetchObjAndCache(placeholders['parentObjId'], placeholders['parentObjType'], placeholders);
 					}
 					let cachedSubObjIds = parentObj[placeholders['subObjIdsCacheKey']];
 					if(cachedSubObjIds) {
@@ -1168,7 +1168,7 @@ const _getObjByPath = (json, path) => {
  * @param {Object} json 请求结果对象
  * @param {String} path 从中获取对象时使用的Key
  */
-const _getObjFromJsonByKey = (json, path) => {
+const _getObjFromJsonByPath = (json, path) => {
 	if(_getObjByPath(json, path) !== undefined) {
 		return _getObjByPath(json, path);
 	}
@@ -1194,14 +1194,14 @@ const _getObjFromJson = (json, paths, defaultVal) => {
 		return defaultVal;
 	}
 	if(Utils.isString(paths)) {
-		let result = _getObjFromJsonByKey(json, paths);
+		let result = _getObjFromJsonByPath(json, paths);
 		if(result !== undefined) {
 			return result;
 		}
 	}
 	if(Utils.isArray(paths)) {
 		for(let path of paths) {
-			let result = _getObjFromJsonByKey(json, path);
+			let result = _getObjFromJsonByPath(json, path);
 			if(result) {
 				return result;
 			}
@@ -1225,7 +1225,14 @@ const _getResultFromJson = (json, path = 'result') => {
  * @param {String | String List} path 从中获取数据集时使用的Path, 可以为列表
  */
 const _getRowsFromJson = (json, path = 'rows') => {
-	return _getObjFromJson(json, path);
+	const rows = _getObjFromJson(json, path);
+	if(! rows) {
+		return rows;
+	}
+	if(! Utils.isArray(rows)) {
+		return [rows];
+	}
+	return rows;
 };
 
 /**

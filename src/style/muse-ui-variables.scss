@@ -21,3 +21,21 @@
     justify-content: center;
     align-items: center;
 }
+.mu-dialog.wrap {
+    overflow: hidden;
+    .mu-dialog-body {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        padding: 0;
+        .mu-appbar {
+            width: 100%;
+        }
+        .container, .container-fluid {
+            width: 100%;
+            flex: 1 1 auto;
+            padding: 16px;
+        }
+    }
+}
+}

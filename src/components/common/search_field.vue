@@ -9,7 +9,8 @@
         :solo="true"
         full-width
         @keyup.enter.native="search">
-        <div slot="append">
+        <div class="search-field__append"
+            slot="append">
             <mu-icon class="search-field__clear"
                 v-show="searchValue"
                 size="18"
@@ -48,7 +49,7 @@
             };
         },
         watch: {
-            searchValue: function(newValue, oldValue) {
+            'searchValue'(newValue, oldValue) {
                 this.$emit('input', newValue);
                 /* 由非空转空时自动触发一次搜索, 同时重置搜索 */
                 if(! this.isSameAsLastSearch && ! newValue && oldValue) {
@@ -58,7 +59,7 @@
                     });
                 }
             },
-            value: function(newValue, oldValue) {
+            'value'(newValue, oldValue) {
                 this.searchValue = newValue;
             }
         },
@@ -98,24 +99,32 @@
     .search-field {
         width: 100%;
         height: 48px;
+        min-height: 48px;
         border: 1px solid #ddd;
         padding-left: 1rem;
         border-radius: 3rem;
+        overflow: hidden;
+        .search-field__append {
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
         .search-field__clear {
             cursor: pointer;
         }
-    }
-    .search-field--small {
-        height: 36px;
-        padding: 0;
-        .mu-input-content {
-            padding: 0 4px 0 16px;
-            line-height: 36px;
-        }
-        .mu-button {
-            width: 36px;
+        &.search-field--small {
             height: 36px;
+            min-height: 36px;
+            padding: 0;
+            line-height: 36px;
+            .mu-input-content {
+                height: 36px;
+                padding-left: 12px;
+            }
+            .mu-button {
+                width: 36px;
+                height: 36px;
+            }
         }
     }
-    
 </style>

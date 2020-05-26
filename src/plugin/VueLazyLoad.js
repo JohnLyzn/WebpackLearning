@@ -660,14 +660,18 @@ var ImageCache = function () {
     }
   }, {
     key: 'dataUrl',
-    value: function dataUrl(image) {
+    value: function dataUrl(image, resolve) {
       var canvas = document.createElement('canvas');
       canvas.width = image.width;
       canvas.height = image.height;
       var ctx = canvas.getContext('2d');
       ctx.drawImage(image, 0, 0, image.width, image.height);
-      var ext = image.src.substring(image.src.lastIndexOf('.') + 1).toLowerCase();
-      return canvas.toDataURL('image/' + ext);
+      // var ext = image.src.substring(image.src.lastIndexOf('.') + 1).toLowerCase();
+      setTimeout(function() {
+        canvas.toBlob(function (blobObj) {
+            resolve(window.URL.createObjectURL(blobObj));
+        })
+      }, 0);
     }
   }, {
     key: 'hashCode',
@@ -698,15 +702,25 @@ var ImageCache = function () {
     }
   }, {
     key: 'add',
-    value: function add(url, image) {
-        if (this.has(url)) return;
-        var key = this.hashCode(url);
-        if(! key) {
-          return;
-        }
-        this._caches.push(key);
-        this._contentCaches[key] = this.isLocalUrl(url) ? url : this.dataUrl(image);
-        if (this._caches.length > this.options.max) {
+    value: function add(url, image, loading, reload) {
+      if (this.has(url)) return;
+      var key = this.hashCode(url);
+      if(! key) {
+        return;
+      }
+      this._caches.push(key);
+      if(this.isLocalUrl(url)) {
+        this._contentCaches[key] = url;
+      } else if(image) {
+        this._contentCaches[key] = loading;
+        var that = this;
+        this.dataUrl(image, function (blobUrl) {
+          that._contentCaches[key] = blobUrl;
+          reload && reload();
+        });
+      }
+      
+      if (this._caches.length > this.options.max) {
         this.free();
       }
     }
@@ -830,7 +844,7 @@ var ReactiveListener = function () {
           error = _ref2.error;
 
       var oldSrc = this.src;
-      this.src = src;
+      this.src = src ? src : oldSrc;
       this.lazySrcHandler = lazySrcHandler;
       this.loading = loading;
       this.error = error;
@@ -922,6 +936,10 @@ var ReactiveListener = function () {
         return;
       }
       if (this.state.rendered && this.state.loaded) return;
+      if (this._imageCache.isLocalUrl(this.src)
+        || this._imageCache.has(this.src)) {
+          _this3.el && _this3.el.setAttribute('cached', true);
+      }
       if (this._imageCache.has(this.src)) {
         this.state.loaded = true;
         this.render('loaded', true);
@@ -946,7 +964,12 @@ var ReactiveListener = function () {
           _this3.naturalWidth = data.naturalWidth;
           _this3.state.loaded = true;
           _this3.state.error = false;
-          _this3._imageCache.add(_this3.src, data.image);
+          _this3._imageCache.add(_this3.src, data.image, _this3.loading, function() {
+            _this3.el && _this3.el.setAttribute('cached', true);
+            _this3.state.loaded = false;
+            _this3.state.rendered = false;
+            _this3.load();
+          });
           _this3.record('loadEnd');
           _this3.render('loaded', false);
           _this3.state.rendered = true;
@@ -1505,7 +1528,6 @@ var Lazy = function (Vue) {
         var el = listener.el,
             bindType = listener.bindType;
 
-
         var src = void 0;
         switch (state) {
           case 'loading':
@@ -1515,7 +1537,7 @@ var Lazy = function (Vue) {
             src = listener.error;
             break;
           default:
-            src = this._imageCache.get(listener.src) || listener.src;
+            src = this._imageCache.get(listener.src) || listener.src || listener.options.src;
             break;
         }
 
@@ -1826,7 +1848,7 @@ var LazyImage = (function (lazyManager) {
         }
         var src = this.options.src;
         if(!src && ! handleLazySrc(this)) {
-          this.$emit('lazy-src', );
+          this.$emit('show');
           return;
         }
         loadImageAsync({ src: src }, function (_ref) {

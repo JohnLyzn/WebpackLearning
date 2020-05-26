@@ -60,8 +60,14 @@
                 </mu-button>
             </mu-text-field>
         </div>
-        <mu-bottom-sheet class="input-field__options"
-            v-if="isOptional"
+        <component v-if="isOptional"
+            :is="isDesktop?'mu-popover':'mu-bottom-sheet'" 
+            class="input-field__options"
+            :class="{
+                'input-field__options--desktop': isDesktop,
+            }"
+            :trigger="$el"
+            :docked="false"
             :open.sync="isPicking">
             <div class="input-field__options-toolbar content__side">
                 <mu-button
@@ -83,6 +89,8 @@
                         @click="hideOptionPicker()">
                         确定
                     </mu-button>
+                    <slot name="option-opts">
+                    </slot>
                 </div>
             </div>
             <div class="input-field__options-search"
@@ -90,7 +98,7 @@
                 <search-field v-model="optionSearchVal"
                     :placeholder="optionSearchPlaceholder"
                     small
-                    :searching="isOptionLoading"
+                    :searching="isOptionRefreshing"
                     @search="searchOption">
                 </search-field>
             </div>
@@ -134,7 +142,7 @@
             <div class="input-field__options-list">
                 <mu-load-more :refreshing="isRefreshing"
                     :loading="isLoading"
-                    :load-end="isOptionLoadEnd"
+                    :loaded-all="isOptionLoadEnd"
                     @refresh="refreshOption"
                     @load="loadOption">
                     <mu-list :value="isMultiple?null:pickedOptionIds[0]">
@@ -172,21 +180,27 @@
                             </mu-list-item>
                             <mu-divider :key="_toOptionId(option)" />
                         </template>
-                        <p style="padding-top:40px;"
-                            class="text-center"
-                            v-if="isEmptyOptions"
-                            v-show="!isLoading">
+                        <p v-if="isInitialOptions"
+                            v-show="!isLoading&&!isRefreshing"
+                            style="padding-top:40px;"
+                            class="text-center">
+                            {{optionInitialMsg}}
+                        </p>
+                        <p v-if="isEmptyOptions"
+                            v-show="!isLoading&&!isRefreshing"
+                            style="padding-top:40px;"
+                            class="text-center">
                             {{optionEmptyMsg}}
                         </p>
-                        <p class="text-center"
-                            v-else-if="isOptionLoadEnd"
-                            v-show="!isLoading">
+                        <p v-else-if="isOptionLoadEnd"
+                            v-show="!isLoading&&!isRefreshing"
+                            class="text-center">
                             {{optionLoadEndMsg}}
                         </p>
                     </mu-list>
                 </mu-load-more>
             </div>
-        </mu-bottom-sheet>
+        </component>
     </div>
 </template>
 <script>
@@ -242,6 +256,10 @@
             optionLabelKey: {
                 type: String,
                 default: 'name',
+            },
+            optionInitialMsg: {
+                type: String,
+                default: '准备中~',
             },
             optionEmptyMsg: {
                 type: String,
@@ -334,6 +352,19 @@
             };
         },
         computed: {
+            isDesktop() {
+                if(window.innerWidth < 800) {
+                    return false;
+                }
+                return true;
+            },
+            optionsTrigger() {
+                console.log(this.$el);
+                if(this.isDesktop) {
+                    return this.$el;
+                }
+                return '';
+            },
             placeholder() {
                 if(! this.isMultiple 
                     && this.isEmptyOptions) {
@@ -368,14 +399,17 @@
             isOptional() {
                 return this.options != -1 ? true : false;
             },
+            isInitialOptions() {
+                return this.isOptional && this.displayingOptions === '';
+            },
             isEmptyOptions() {
                 return this.isOptional && this.displayingOptions !== '' && ! this.displayingOptions.length;
             },
             isLoading() {
-                return this.isOptionLoading;
+                return ! this.isOptionRefreshing && this.isOptionLoading;
             },
             isRefreshing() {
-                return this.isOptionRefreshing || this.displayingOptions === '';
+                return this.isOptionRefreshing;
             },
             validateRules() {
                 if(! this.format) {
@@ -445,14 +479,14 @@
             },
         },
         watch: {
-            'value': function(newValue) {
+            'value'(newValue) {
                 if(this.isMultiple) {
                     this._mergePickedOptionIds(newValue);
                     return;
                 }
                 this.inputValue = this._toInputValue(newValue);
             },
-            'inputValue': function(newValue) {
+            'inputValue'(newValue) {
                 if(this.isMultiple) {
                     return;
                 }
@@ -471,7 +505,7 @@
                     this.pickOption(realVal);
                 }
             },
-            'options': function(newValue) {
+            'options'(newValue) {
                 this._checkOptions();
                 this._changeDisplayingOptions(newValue);
                 if(! this.isMultiple 
@@ -480,39 +514,41 @@
                     this.pickOption(this._toRealValue(this.inputValue));
                 }
             },
-            'optionRefreshing': function(newVal) {
+            'optionRefreshing'(newVal) {
                 if(newVal) {
                     this.isOptionRefreshing = true;
                     return;
                 }
                 this.isOptionRefreshing = false;
-                this.isOptionLoading = false;
             },
-            'optionLoading': function(newVal) {
+            'optionLoading'(newVal) {
                 if(newVal) {
                     this.isOptionLoading = true;
                     return;
                 }
-                this.isOptionRefreshing = false;
                 this.isOptionLoading = false;
             },
-            'optionLoadEnd': function(newVal) {
+            'optionLoadEnd'(newVal) {
                 this.isOptionLoadEnd = newVal;
                 if(newVal) {
                     this.isOptionRefreshing = false;
                     this.isOptionLoading = false;
                 }
             },
-            'picking': function(newVal) {
-                this.isPicking = newVal;
-            },
-            'isPicking': function(newVal) {
+            'picking'(newVal) {
                 if(newVal) {
-                    this.$refs.input.focus();
+                    this.showOptionPicker();
+                    return;
+                }
+                this.hideOptionPicker();
+            },
+            'isPicking'(newVal) {
+                if(this.picking === newVal) {
+                    return;
                 }
                 this.$emit('update:picking', newVal);
             },
-            'pickedOptions': function(newVal, oldVal) {
+            'pickedOptions'(newVal, oldVal) {
                 if(! this.isMultiple) {
                     // 单个的由改变inputValue来触发
                     return;
@@ -526,13 +562,13 @@
                     });
                 }
             },
-            'optionSearchValue': function(newVal) {
+            'optionSearchValue'(newVal) {
                 this.optionSearchVal = newVal;
             },
-            'optionSearchVal': function(newVal) {
+            'optionSearchVal'(newVal) {
                 this.$emit('update:optionSearchValue', newVal);
             },
-            'optionExpanding': function(newVal) {
+            'optionExpanding'(newVal) {
                 if(! this.optionExpandRoot && newVal) {
                     this.optionExpandingRoot = newVal;
                 }
@@ -758,41 +794,29 @@
                 }
                 this.isOptionRefreshing = true;
                 this.$emit('option-refresh', this.expandingOption);
-                this.setOptionLoadingMinTimer();
             },
             loadOption() {
                 if(this.isOptionLoading) {
+                    console.log("loading")
                     return;
                 }
                 if(this.isOptionLoadEnd) {
+                    console.log("loadEnd")
                     return;
                 }
                 this.isOptionLoading = true;
-                this.$emit('option-load-more', this.expandingOption);
-                this.setOptionLoadingMinTimer();
-            },
-            setOptionLoadingMinTimer() {
-                // 在指定超短时间内, 没有进行加载且已加载全部初始化为true
-                // 则直接自动设置为全部加载结束
-                setTimeout(() => {
-                    if(! this.optionLoading) {
-                        this.isOptionRefreshing = false;
-                        this.isOptionLoading = false;
-                        if(this.optionLoadEnd) {
-                            this.isOptionLoadEnd = true;
-                        }
-                    }
-                }, 0);
+                this.$emit('option-load', this.expandingOption);
             },
             searchOption() {
+                this.optionLastExpanding = this.optionExpandRoot;
+                this.$emit('update:option-expanding', this.optionExpandRoot);
                 this.optionExpandPath = [];
                 this.isOptionLoadEnd = false;
                 this._setDisplayingOptions('');
                 
-                this.isOptionLoading = true;
+                this.isOptionRefreshing = true;
                 this.$emit('update:optionSearchValue', this.optionSearchVal);
                 this.$emit('option-search', this.expandingOption);
-                this.setOptionLoadingMinTimer();
             },
             focusMultiBlockScroll() {
                 if(this.$refs && this.$refs.multiBlock) {
@@ -883,6 +907,9 @@
                 }
                 this.optionLastExpanding = parentOption;
                 this.$emit('update:option-expanding', parentOption);
+                if(this.isRefreshing) {
+                    return;
+                }
                 this.$emit('option-expand', parentOption);
             },
             backToLastExpand() {
@@ -999,6 +1026,17 @@
                 .mu-chip {
                     margin-top: 4px;
                     margin-left: 4px;
+                    max-width: 80%;
+                    line-height: 24px;
+                    overflow: hidden;
+                    display: inline-block;
+                    word-break: break-all;
+                    white-space: initial;
+                    vertical-align: middle;
+                    display: inline-flex;
+                    .mu-chip-delete-icon {
+                        flex-shrink: 0;
+                    }
                 }
             }
         }
@@ -1006,6 +1044,18 @@
     .input-field__options {
         width: 100%;
         min-height: 360px;
+        &.input-field__options--desktop {
+            width: initial;
+            min-width: 480px;
+            height: 60vh;
+            max-height: 568px; 
+            display: flex;
+            flex-direction: column;
+            .input-field__options-list {
+                width: 100%;
+                flex: 1 1 auto; 
+            }
+        }
         .iconfont {
             font-size: 24px;
             color: #999;

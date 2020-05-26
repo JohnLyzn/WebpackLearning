@@ -497,7 +497,11 @@ export const isCurrentClient = (type) => {
 /**
  * 打开url
  */
-export const openUrl = (url) => {
+export const openUrl = (url, replace) => {
+	if(replace) {
+		window.location.replace(url);
+		return;
+	}
 	if(isCurrentClient('pc')) {
 		window.open(url);
 		return;

@@ -2,40 +2,110 @@
 import Utils from 'common/utils';
 
 const LISTENING_ELS = [];
-
-const isEventIntervalValid = (el, e) => {
-    if(! e.timeStamp) {
-        return false;
-    }
-    if(e.timeStamp - el.VBACK_EVENT_ACT_TIME < 1000) {
-        return false;
-    }
-    el.VBACK_EVENT_STATES.lastTime = e.timeStamp;
-    return true;
+const GLOBAL_STATES = {
+    actived: false,
+    lastEventTime: 0,
+    eventMinIntervalMils: 500,
+    triggerRealBackTimer: '',
+    triggerRealBackWaitMils: 500,
+    cleaningUrl: '',
+    cleaning: false,
+    cleanDoneWaitTimer: '',
+    cleanDoneWaitMils: 500,
 };
 
 const VBACK_EVENT_GLB_LISTERNER = (e) => {
+    Utils.stopBubble(e);
+    // 清理状态中不用执行到vback事件处理
+    if(GLOBAL_STATES.cleaning) {
+        // 当前历史地址是vback生成的, 就继续向上回溯
+        if(e.state && e.state.vback) {
+            console.log('v-back历史记录弹出');
+            window.history.back();
+            return;
+        }
+        // 由于浏览器是先触发历史记录加载再异步处理的popState事件
+        // 不是的话等待一段时间看看是否地址发生了变化
+        if(GLOBAL_STATES.cleanDoneWaitTimer) {
+            clearTimeout(GLOBAL_STATES.cleanDoneWaitTimer);
+        }
+        GLOBAL_STATES.cleanDoneWaitTimer = setTimeout(() => {
+            // 没有变化再自动触发一次返回
+            if(GLOBAL_STATES.cleaningUrl === document.URL) {
+                console.log('v-back历史记录清理后需自动返回');
+                window.history.back();
+            }
+            // 结束清理
+            _doneCleaning();
+            console.log('v-back历史记录清理完成');
+        }, GLOBAL_STATES.cleanDoneWaitMils);
+        return;
+    }
+    // 有效间隔内方可触发
+    if(! _isValidEventInterval(e)) {
+        return;   
+    }
+    // 进行vback事件处理
+    let isRealBack = true;
     for(let i = LISTENING_ELS.length - 1; i > -1; i --) {
         const el = LISTENING_ELS[i];
-        if(! isEventIntervalValid(el, e)
-            || el.VBACK_EVENT_STATES.canceling
+        if(el.VBACK_EVENT_STATES.canceling
             || el.VBACK_EVENT_STATES.poping) {
-            Utils.stopBubble(e);
             continue;
         }
         el.VBACK_EVENT_STATES.poping = true;
         if(actPopState(el)) {
-            Utils.stopBubble(e);
-        } else {
-            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回, 需清理' + el.VBACK_EVENT_STATES.count);
-            if(el.VBACK_EVENT_STATES.count > 0) {
-                window.history.go(- el.VBACK_EVENT_STATES.count);
-            }
+            isRealBack = false;
         }
         _nextTick(() => {
             el.VBACK_EVENT_STATES.poping = false;
         });
     }
+    if(! isRealBack) {
+        _cancelCleaning();
+        return;
+    }
+    // 所有返回处理都结束时进入清理状态
+    if(GLOBAL_STATES.triggerRealBackTimer) {
+        clearTimeout(GLOBAL_STATES.triggerRealBackTimer);
+    }
+    GLOBAL_STATES.triggerRealBackTimer = setTimeout(() => {
+        if(! GLOBAL_STATES.cleaning) {
+            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回');
+            _setCleaning();
+            window.history.back(); /* 触发一次以进入递归逻辑 */
+        }
+    }, GLOBAL_STATES.triggerRealBackWaitMils);
+};
+
+const _isValidEventInterval = (e) => {
+    if(! e.timeStamp) {
+        return false;
+    }
+    const interval = e.timeStamp - GLOBAL_STATES.lastEventTime;
+    if(interval < GLOBAL_STATES.eventMinIntervalMils) {
+        if(interval < 10) {
+            window.history.forward();
+        }
+        return false;
+    }
+    GLOBAL_STATES.lastEventTime = e.timeStamp;
+    return true;
+};
+
+const _setCleaning = () => {
+    GLOBAL_STATES.cleaning = true;
+    GLOBAL_STATES.cleaningUrl = document.URL;
+};
+
+const _cancelCleaning = () => {
+    GLOBAL_STATES.cleaning = false;
+    GLOBAL_STATES.cleaningUrl = '';
+};
+
+const _doneCleaning = () => {
+    GLOBAL_STATES.cleaning = false;
+    GLOBAL_STATES.cleaningUrl = '';
 };
 
 const _keyOf = (key) => {
@@ -73,10 +143,12 @@ const _init = (el) => {
     el.VBACK_EVENT_KEYS = [];
     el.VBACK_EVENT_STATES = {
         lastTime: 0,
-        count: 0,
         canceling: false,
         poping: false,
     };
+    GLOBAL_STATES.actived = false;
+    GLOBAL_STATES.cleaningUrl = '';
+    GLOBAL_STATES.cleaning = false;
 };
 
 const _analysisArgs = (element, index) => {
@@ -169,11 +241,15 @@ const initWatchers = (el, context) => {
 
 const actPushState = (el, backObj) => {
     console.log('v-back为' + backObj.key + '压入空历史记录等待返回事件触发, 目前history长度为' + window.history.length);
-    window.history.pushState(null, null, '#');
-    window.history.pushState(null, null, '#'); /* 有些平台如android内置浏览器会出现一次不够的情况, 点击一次触发两次popstate */
-    el.VBACK_EVENT_STATES.count ++;
+    // 数据中包括vback标记, 并且保证url与上次的不一样
+    if(document.URL.indexOf('#vback') == -1) {
+        window.history.pushState({vback:true}, null, document.URL +'#vback' + Date.now()); 
+    } else {
+        window.history.pushState({vback:true}, null, document.URL.replace(/#vback.*$/, '#vback'+ Date.now()));
+    }
     backObj.$statePoped = false;
     backObj.$statePushed = true;
+    _cancelCleaning();
     if(Utils.isFunc(backObj.handleIn)) {
         console.log('v-back初始化事件, 调用in回调, 目前history长度为' + window.history.length);
         _nextTick(() => {
@@ -193,6 +269,10 @@ const actPopState = (el) => {
         }
         backObj.$statePushed = false;
         backObj.$statePoped = true;
+        if(backObj.$root 
+            && ! GLOBAL_STATES.actived) {
+            continue;
+        }
         if(Utils.isFunc(backObj.handleOut)) {
             console.log('v-back返回事件被触发, 为' + backObj.key + '调用out回调, 目前history长度为' + window.history.length);
             _nextTick(() => {
@@ -203,6 +283,9 @@ const actPopState = (el) => {
             const parent = _parentOfKey(backObj.$context, backObj.key);
             const argKey = _keyOf(backObj.key);
             backObj.$context.$set(parent, argKey, false);
+        }
+        if(! backObj.$root) {
+            GLOBAL_STATES.actived = true;
         }
         return true;
     }
@@ -217,15 +300,6 @@ const cancelPushStateTrick = (el, backObj) => {
         return;
     }
     console.log('v-back为' + backObj.key + '取消空历史记录, 目前history长度为' + window.history.length);
-    // if(! backObj.$statePoped) {
-    //     console.log('v-back检测到' + backObj.key + '已压入空历史未使用, 将进行回退, 目前history长度为' + window.history.length);
-    //     el.VBACK_EVENT_STATES.canceling = true;
-    //     // window.history.go(-1);
-    //     window.history.replaceState(null, null, '#');
-    //     _nextTick(() => {
-    //         el.VBACK_EVENT_STATES.canceling = false;
-    //     });
-    // }
     backObj.$statePushed = false;
     backObj.$statePoped = false;
 };
@@ -239,9 +313,11 @@ const bindPopStateEventListener = (el) => {
     _nextTick(() => {
         /* 同名函数添加监听不会重复 */
         if (window.addEventListener) { //所有主流浏览器，除了 IE 8 及更早 IE版本
-            window.addEventListener('popstate', VBACK_EVENT_GLB_LISTERNER); 
+            window.addEventListener('popstate', VBACK_EVENT_GLB_LISTERNER, false); 
+            // window.addEventListener('beforeunload', VBACK_EVENT_GLB_LISTERNER, false); 
         } else if (window.attachEvent) { // IE 8 及更早 IE 版本
-            window.attachEvent('onpopstate', VBACK_EVENT_GLB_LISTERNER);
+            window.attachEvent('onpopstate', VBACK_EVENT_GLB_LISTERNER, false);
+            // window.attachEvent('beforeunload', VBACK_EVENT_GLB_LISTERNER, false);
         }
     });
 };
