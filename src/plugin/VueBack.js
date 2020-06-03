@@ -1,81 +1,125 @@
 
-import Utils from 'common/utils';
+const Utils = {
+    /**
+	 * 检查一个变量是否有效并且不为空
+	 * @param {Object} variable 检查的变量
+	 * @return {Boolean} 是否有效并且不为空
+	 */
+	isEmpty: function(variable) {
+		if(! Utils.isValidVariable(variable)) {
+			return true;
+		}
+		if(Utils.isArray(variable)
+			&& variable.length < 1) {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否是函数
+	* @param {Object} func 检查的对象
+	* @return {Boolean} 是否是函数
+	*/
+	isFunc: function(func) {
+		if(typeof func == 'function') {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否是对象
+	* @param {Object} obj 检查的对象
+	* @return {Boolean} 是否是对象
+	*/
+	isObject: function(obj) {
+		if(obj instanceof Object || typeof obj == 'object') {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否是数组
+	* @param {Object} arr 检查的对象
+	* @return {Boolean} 是否是数组
+	*/
+	isArray: function(arr) {
+		if(arr instanceof Array || (arr && arr.constructor.toString().indexOf('function Array() {') != -1)) {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否是字符串
+	* @param {Object} str 检查的对象
+	* @return {Boolean} 是否是字符串
+	*/
+	isString: function(str) {
+		if(str instanceof String || typeof str == 'string') {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否数字
+	* @param {Object} number 检查的对象
+	* @return {Boolean} 是否是数字
+	*/
+	isNumber: function(number) {
+		if(number instanceof Number || typeof number == 'number') {
+			return true;
+		}
+		return false;
+	},
+	/**
+	* 判断某个对象是否是指定类型实例
+	* @param {Object} obj 检查的对象
+	* @param {Object} type 指定类型实例
+	* @return {Boolean} 对象是否是指定类型实例
+	*/
+	isInstance: function(obj, type) {
+		if(obj instanceof type || (obj && type && obj.constructor.toString() == type.toString())) {
+			return true;
+		}
+		return false;
+    },
+    /**
+	* 停止事件冒泡
+	* @param {Event Object} event 事件
+	*/
+    stopBubble: function(event) {
+		event = event || window.event;
+		event.cancelBubble && (event.cancelBubble = true);
+		event.stopPropagation && event.stopPropagation();
+		event.returnValue && (event.returnValue = false);
+		event.preventDefault && event.preventDefault();
+	},
+};
 
 const LISTENING_ELS = [];
+const BACK_OBJS = {};
 const GLOBAL_STATES = {
-    actived: false,
+    backObjIdGrowth: Date.now(),
     lastEventTime: 0,
     eventMinIntervalMils: 500,
-    triggerRealBackTimer: '',
-    triggerRealBackWaitMils: 500,
-    cleaningUrl: '',
-    cleaning: false,
-    cleanDoneWaitTimer: '',
-    cleanDoneWaitMils: 500,
+    topUrl: '',
 };
 
 const VBACK_EVENT_GLB_LISTERNER = (e) => {
-    Utils.stopBubble(e);
-    // 清理状态中不用执行到vback事件处理
-    if(GLOBAL_STATES.cleaning) {
-        // 当前历史地址是vback生成的, 就继续向上回溯
-        if(e.state && e.state.vback) {
-            console.log('v-back历史记录弹出');
-            window.history.back();
-            return;
-        }
-        // 由于浏览器是先触发历史记录加载再异步处理的popState事件
-        // 不是的话等待一段时间看看是否地址发生了变化
-        if(GLOBAL_STATES.cleanDoneWaitTimer) {
-            clearTimeout(GLOBAL_STATES.cleanDoneWaitTimer);
-        }
-        GLOBAL_STATES.cleanDoneWaitTimer = setTimeout(() => {
-            // 没有变化再自动触发一次返回
-            if(GLOBAL_STATES.cleaningUrl === document.URL) {
-                console.log('v-back历史记录清理后需自动返回');
-                window.history.back();
-            }
-            // 结束清理
-            _doneCleaning();
-            console.log('v-back历史记录清理完成');
-        }, GLOBAL_STATES.cleanDoneWaitMils);
-        return;
-    }
     // 有效间隔内方可触发
     if(! _isValidEventInterval(e)) {
         return;   
     }
     // 进行vback事件处理
-    let isRealBack = true;
-    for(let i = LISTENING_ELS.length - 1; i > -1; i --) {
-        const el = LISTENING_ELS[i];
-        if(el.VBACK_EVENT_STATES.canceling
-            || el.VBACK_EVENT_STATES.poping) {
-            continue;
-        }
-        el.VBACK_EVENT_STATES.poping = true;
-        if(actPopState(el)) {
-            isRealBack = false;
-        }
-        _nextTick(() => {
-            el.VBACK_EVENT_STATES.poping = false;
-        });
-    }
-    if(! isRealBack) {
-        _cancelCleaning();
+    const matched = GLOBAL_STATES.topUrl.match(/#vback.*$/);
+    if(! matched || ! matched.length) {
         return;
     }
-    // 所有返回处理都结束时进入清理状态
-    if(GLOBAL_STATES.triggerRealBackTimer) {
-        clearTimeout(GLOBAL_STATES.triggerRealBackTimer);
+    Utils.stopBubble(e);
+    const backObj = BACK_OBJS[matched[0].replace(/#vback/g, '')];
+    if(! backObj) {
+        return;
     }
-    GLOBAL_STATES.triggerRealBackTimer = setTimeout(() => {
-        if(! GLOBAL_STATES.cleaning) {
-            console.log('v-back已完成所有的返回处理, 将进行真正的历史返回');
-            _setCleaning();
-            window.history.back(); /* 触发一次以进入递归逻辑 */
-        }
-    }, GLOBAL_STATES.triggerRealBackWaitMils);
+    actPopState(backObj.$el, backObj);
 };
 
 const _isValidEventInterval = (e) => {
@@ -91,21 +135,6 @@ const _isValidEventInterval = (e) => {
     }
     GLOBAL_STATES.lastEventTime = e.timeStamp;
     return true;
-};
-
-const _setCleaning = () => {
-    GLOBAL_STATES.cleaning = true;
-    GLOBAL_STATES.cleaningUrl = document.URL;
-};
-
-const _cancelCleaning = () => {
-    GLOBAL_STATES.cleaning = false;
-    GLOBAL_STATES.cleaningUrl = '';
-};
-
-const _doneCleaning = () => {
-    GLOBAL_STATES.cleaning = false;
-    GLOBAL_STATES.cleaningUrl = '';
 };
 
 const _keyOf = (key) => {
@@ -146,9 +175,6 @@ const _init = (el) => {
         canceling: false,
         poping: false,
     };
-    GLOBAL_STATES.actived = false;
-    GLOBAL_STATES.cleaningUrl = '';
-    GLOBAL_STATES.cleaning = false;
 };
 
 const _analysisArgs = (element, index) => {
@@ -175,6 +201,9 @@ const _getBackObj = (el, key) => {
     }
     return el.VBACK_EVENT_QUEUE[index];
 };
+const _generateBackObjId = () => {
+    return ++ GLOBAL_STATES.backObjIdGrowth;
+};
 
 const initBackObj = (el, isRoot, key, inFn, outFn) => {
     if(! key) {
@@ -185,6 +214,7 @@ const initBackObj = (el, isRoot, key, inFn, outFn) => {
         return oldObj;
     }
     const newObj = {
+        id: _generateBackObjId(),
         key: key,
         handleIn: inFn,
         handleOut: outFn,
@@ -194,10 +224,16 @@ const initBackObj = (el, isRoot, key, inFn, outFn) => {
         $watched: false,
         $statePushed: false,
         $statePoped: false,
+        $stateCancel: false,
     };
     el.VBACK_EVENT_KEYS.push(key);
     el.VBACK_EVENT_QUEUE.push(newObj);
+    BACK_OBJS[newObj.id] = newObj;
     return newObj;
+};
+
+const _syncTopUrl = () => {
+    GLOBAL_STATES.topUrl = document.URL;
 };
 
 const initWatchers = (el, context) => {
@@ -240,16 +276,23 @@ const initWatchers = (el, context) => {
 };
 
 const actPushState = (el, backObj) => {
-    console.log('v-back为' + backObj.key + '压入空历史记录等待返回事件触发, 目前history长度为' + window.history.length);
-    // 数据中包括vback标记, 并且保证url与上次的不一样
-    if(document.URL.indexOf('#vback') == -1) {
-        window.history.pushState({vback:true}, null, document.URL +'#vback' + Date.now()); 
-    } else {
-        window.history.pushState({vback:true}, null, document.URL.replace(/#vback.*$/, '#vback'+ Date.now()));
+    if(! backObj
+        || ! backObj.$context
+        || ! backObj.$watched
+        || backObj.$statePushed) {
+        return;
     }
+    console.log('v-back为' + backObj.key + '压入空历史记录等待返回事件触发, 目前history长度为' + window.history.length);
+    // 数据中包括vback标记, 后拼接上backObj的id
+    if(document.URL.indexOf('#vback') == -1) {
+        window.history.pushState({vback:backObj.id}, null, document.URL +'#vback' + backObj.id); 
+    } else {
+        window.history.pushState({vback:backObj.id}, null, document.URL.replace(/#vback.*$/, '#vback'+ backObj.id));
+    }
+    _syncTopUrl(); /* 这时已经是vback后缀 */
     backObj.$statePoped = false;
     backObj.$statePushed = true;
-    _cancelCleaning();
+    backObj.$stateCancel = false;
     if(Utils.isFunc(backObj.handleIn)) {
         console.log('v-back初始化事件, 调用in回调, 目前history长度为' + window.history.length);
         _nextTick(() => {
@@ -258,41 +301,33 @@ const actPushState = (el, backObj) => {
     }
 };
 
-const actPopState = (el) => {
-    for(let i = el.VBACK_EVENT_QUEUE.length - 1; i > -1 ; i --) {
-        const backObj = el.VBACK_EVENT_QUEUE[i];
-        if(! backObj.$context
-            || ! backObj.$watched
-            || ! backObj.$statePushed
-            || backObj.$statePoped) {
-            continue;
-        }
-        backObj.$statePushed = false;
-        backObj.$statePoped = true;
-        if(backObj.$root 
-            && ! GLOBAL_STATES.actived) {
-            continue;
-        }
-        if(Utils.isFunc(backObj.handleOut)) {
-            console.log('v-back返回事件被触发, 为' + backObj.key + '调用out回调, 目前history长度为' + window.history.length);
-            _nextTick(() => {
-                backObj.handleOut.call(backObj.$context);
-            });
-        } else {
-            console.log('v-back返回事件被触发, 设置' + backObj.key + '值为false, 目前history长度为' + window.history.length);
-            const parent = _parentOfKey(backObj.$context, backObj.key);
-            const argKey = _keyOf(backObj.key);
-            backObj.$context.$set(parent, argKey, false);
-        }
-        if(! backObj.$root) {
-            GLOBAL_STATES.actived = true;
-        }
+const actPopState = (el, backObj) => {
+    backObj.$stateCancel && window.history.back(); /* 已取消直接退历史 */
+    _syncTopUrl(); /* 即使已经处理过也要先同步历史地址 */
+    if(! backObj
+        || ! backObj.$context
+        || ! backObj.$watched
+        || ! backObj.$statePushed
+        || backObj.$statePoped) {
+        return;
+    }
+    backObj.$statePushed = false;
+    backObj.$statePoped = true;
+    if(Utils.isFunc(backObj.handleOut)) {
+        console.log('v-back返回事件被触发, 为' + backObj.key + '调用out回调, 目前history长度为' + window.history.length);
+        _nextTick(() => {
+            backObj.handleOut.call(backObj.$context);
+        });
         return true;
     }
-    return false;
+    console.log('v-back返回事件被触发, 设置' + backObj.key + '值为false, 目前history长度为' + window.history.length);
+    const parent = _parentOfKey(backObj.$context, backObj.key);
+    const argKey = _keyOf(backObj.key);
+    backObj.$context.$set(parent, argKey, false);
 };
 
 const cancelPushStateTrick = (el, backObj) => {
+    _syncTopUrl(); /* 依然需要同步当前地址 */
     if(el.VBACK_EVENT_STATES.poping
         || el.VBACK_EVENT_STATES.canceling
         || backObj.$root
@@ -302,6 +337,9 @@ const cancelPushStateTrick = (el, backObj) => {
     console.log('v-back为' + backObj.key + '取消空历史记录, 目前history长度为' + window.history.length);
     backObj.$statePushed = false;
     backObj.$statePoped = false;
+    backObj.$stateCancel = true;
+    /* 这里不退历史, 因为可能执行到这里时顺序是乱的, 可能退错, 
+     仅标记为取消交给popstate监听到再多次退历史(它的顺序是对的) */
 };
 
 const bindPopStateEventListener = (el) => {

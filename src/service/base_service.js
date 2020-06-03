@@ -414,7 +414,7 @@ export default class BaseService {
 	 * @param {*} placeholders 
 	 */
 	putObjInCacheMap(obj, objType, placeholders) {
-		let cacheObj = new (objType)(obj, false, placeholders);
+		let cacheObj = new (objType)(obj, Utils.isString(obj.id) ? true : false, placeholders);
 		if(! Utils.isString(cacheObj.id)) {
 			throw new Error('请保证模型的id为字符串类型');
 		}
@@ -888,7 +888,7 @@ const _removeInCacheMap = (cacheKey, id) => {
  */
 const _search = (searchObjs, searches, strict) => {
 	if(searchObjs.length == 0) {
-		return null;
+		return [];
 	}
 	if(! searches) {
 		return [];
@@ -912,7 +912,7 @@ const _search = (searchObjs, searches, strict) => {
 		}
 	}
 	if(searchResults.length == 0) {
-		return null;
+		return [];
 	}
 	return searchResults;
 };
@@ -1017,7 +1017,7 @@ const _setCachePagination = (objs, pagination, callbacks) => {
 	let result = objs.slice(start, end);
 	if(result.length == 0) {
 		pagination.cacheMissed = true;
-		return null;
+		return [];
 	} /* 即使不满足count的数量也返回 */
 	return result;
 };
@@ -1040,12 +1040,14 @@ const _setPagination = (pagination, ajaxParams, callbacks) => {
 		};
 		command = 'reset';
 	}
-	let currentTime = new Date().getTime();
-	if(oldPagination.$lastPagingTime 
-		&& currentTime - oldPagination.$lastPagingTime <= Config.MIN_PAGING_INTERVEL) {
-		return false;
+	if(! pagination.cacheMissed) {
+		let currentTime = new Date().getTime();
+		if(oldPagination.$lastPagingTime 
+			&& currentTime - oldPagination.$lastPagingTime <= Config.MIN_PAGING_INTERVEL) {
+			return false;
+		}
+		oldPagination.$lastPagingTime = currentTime;
 	}
-	oldPagination.$lastPagingTime = currentTime;
 	switch(command) {
 	case 'next':
 		if(pagination.$pagingEnd) {
@@ -1055,19 +1057,8 @@ const _setPagination = (pagination, ajaxParams, callbacks) => {
 			}
 			return false;
 		}
-		if(pagination.fetchedTotal) {
-			// 如果total是NaN则为初始化分页时使用的缓存, 这时应总能获取下一页直到真正请求获得真实总数
-			if(! isNaN(oldPagination.total) && oldPagination.total == pagination.fetchedTotal) {
-				oldPagination.$pagingEnd = true;
-				// 最后一页了, 调用基本回调
-				if(callbacks && Utils.isFunc(callbacks.onLastPage)) {
-					callbacks.onLastPage(pagination);
-				}
-			}
-			delete pagination.fetchedTotal;
-		}
 		/* cacheMissed在缓存按分页切割时进行设置的, 如果有这个字段表示缓存已经读完了,
-			*  这时page已经时缓存最大页的下一页了(所以才会没有), 因此跳过页码增加的步骤 */
+			*  这时page已经是缓存最大页的下一页了(所以才会没有), 因此跳过页码增加的步骤 */
 		if(! pagination.cacheMissed) {
 			oldPagination.page ++;
 		} else {

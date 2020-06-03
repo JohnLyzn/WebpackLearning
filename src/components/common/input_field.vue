@@ -2,6 +2,7 @@
     <div class="input-field">
         <div class="input-field__input"
             :class="{
+                'input-field__input--inline':isInline,
                 'input-field__input--readonly':isReadOnly,
                 'input-field__input--optional':isOptional,
                 'input-field__input--disabled':isDisabled,
@@ -81,7 +82,7 @@
                         flat
                         color="secondary"
                         @click="resetPicked()">
-                        {{isMultiple?'清空已选':'清除已选'}}
+                        {{isMultiple?'清空已选':'取消已选'}}
                     </mu-button>
                     <mu-button v-if="isMultiple"
                         flat
@@ -217,6 +218,10 @@
                 type: String,
                 default: '',
             },
+            inline: {
+                type: Boolean,
+                default: false,
+            },
             description: {
                 type: String,
                 default: '',
@@ -259,7 +264,7 @@
             },
             optionInitialMsg: {
                 type: String,
-                default: '准备中~',
+                default: '下拉加载~',
             },
             optionEmptyMsg: {
                 type: String,
@@ -381,6 +386,9 @@
                 }
                 return '请输入内容';
             },
+            isInline() {
+                return this.inline;
+            },
             isReadOnly() {
                 if(this.isOptional && ! this.optionEditable) {
                     return true;
@@ -496,11 +504,10 @@
                     return;
                 }
                 const realVal = this._toRealValue(newValue);
-                if(! realVal) {
-                    return;
+                if(realVal !== this.value) {
+                    this.$emit('input', realVal);
+                    this.$emit('change', realVal);
                 }
-                this.$emit('input', realVal);
-                this.$emit('change', realVal);
                 if(this.isOptional) {
                     this.pickOption(realVal);
                 }
@@ -826,6 +833,7 @@
             },
             pickOption(option, isManual) {
                 if(! option) {
+                    this.pickedOptionIds = [];
                     return;
                 }
                 if(option && option.$pureParent) {
@@ -845,15 +853,11 @@
                         return;
                     }
                     this.pickedOptionIds.push(optionId);
-                } else {
-                    const lastPicked = this.pickedOptionIds[0];
-                    this.$set(this.pickedOptionIds, 0, optionId);
-                    this.inputValue = this._toInputValue(option);
-                    this.hideOptionPicker();
-                    if(lastPicked == optionId) {
-                        return;
-                    }
+                    return;
                 }
+                this.$set(this.pickedOptionIds, 0, optionId);
+                this.inputValue = this._toInputValue(option);
+                this.hideOptionPicker();
             },
             showOptionDetail(option) {
                 this.$emit('option-contextmenu', option);
@@ -942,6 +946,10 @@
                 this._changeDisplayingOptions(this.options);
             }
             if(this.value) {
+                if(this.isMultiple) {
+                    this._mergePickedOptionIds(this.value);
+                    return;
+                }
                 this.inputValue = this._toInputValue(this.value);
             }
         },
@@ -978,6 +986,12 @@
             flex: 1 1 auto;
             .mint-field-core {
                 border-bottom: 1px solid $border;
+            }
+            &.input-field__input--inline {
+                width: 180px;
+                .mu-input {
+                    margin: 0;
+                }
             }
             &.input-field__input--readonly {
                 .mint-field-core {
@@ -1048,7 +1062,8 @@
             width: initial;
             min-width: 480px;
             height: 60vh;
-            max-height: 568px; 
+            max-height: 568px;
+            padding: 8px; 
             display: flex;
             flex-direction: column;
             .input-field__options-list {
