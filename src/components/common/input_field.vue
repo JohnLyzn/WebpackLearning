@@ -31,8 +31,8 @@
                 :action-icon="isOptional?':iconfont icondown':''"
                 :action-click="showOptionPicker"
                 @click.native="showOptionPicker(true)"
-                @focus="inputFocused=true"
-                @blur="inputFocused=false">
+                @focus="onFocus()"
+                @blur="onBlur()">
                 <div v-if="isMultiple"
                     v-show="pickedOptionIds.length"
                     ref="multiBlock"
@@ -499,8 +499,6 @@
                     return;
                 }
                 if(newValue && ! this.validate(true)) {
-                    this.$emit('input', '');
-                    this.$emit('change', '');
                     return;
                 }
                 const realVal = this._toRealValue(newValue);
@@ -645,46 +643,48 @@
                 return true;
             },
             _toRealValue(inputValue) {
-                if(this.isOptional) {
-                    let option, extractFn;
-                    if(this._toOptionByLabel(inputValue)) {
-                        option = this._toOptionByLabel(inputValue);
-                        extractFn = this._toOptionLabel;
-                    } else {
-                        option = this._toOptionById(inputValue);
-                        extractFn = this._toOptionId;
-                    }
-                    if(option) {
-                        if(this.isObjTypeBinding) {
-                            if(this.modelExtractKey) {
-                                return this._toOptionExtractValue(option);
-                            }
-                            return option;
-                        }
-                        return extractFn(option);
-                    }
+                if(! this.isOptional) {
+                    return inputValue;
                 }
-                return inputValue;
+                let option, extractFn;
+                if(this._toOptionByLabel(inputValue)) {
+                    option = this._toOptionByLabel(inputValue);
+                    extractFn = this._toOptionLabel;
+                } else {
+                    option = this._toOptionById(inputValue);
+                    extractFn = this._toOptionId;
+                }
+                if(! option) {
+                    return inputValue;
+                }
+                if(! this.isObjTypeBinding) {
+                    return extractFn(option);
+                }
+                if(this.modelExtractKey) {
+                    return this._toOptionExtractValue(option);
+                }
+                return option;
             },
             _toInputValue(realValue) {
-                if(this.isOptional) {
-                    if(Utils.isObject(realValue)
-                        && this._toOptionId(realValue)
-                        && this._toOptionLabel(realValue)) {
-                        if(! this._toOptionById(this._toOptionId(realValue))) {
-                            this._mergeOptionMap([realValue]);
-                        }
-                        return this._toOptionLabel(realValue) || '';
+                if(! this.isOptional) {
+                    return realValue;
+                }
+                if(Utils.isObject(realValue)
+                    && this._toOptionId(realValue)
+                    && this._toOptionLabel(realValue)) {
+                    if(! this._toOptionById(this._toOptionId(realValue))) {
+                        this._mergeOptionMap([realValue]);
                     }
-                    if(this.modelExtractKey && this._toOptionByExtractVal(realValue)) {
-                        return this._toOptionLabel(this._toOptionByExtractVal(realValue));
-                    }
-                    if(this._toOptionById(realValue)) {
-                        return this._toOptionLabel(this._toOptionById(realValue));
-                    }
-                    if(this._toOptionByLabel(realValue)) {
-                        return this._toOptionLabel(this._toOptionByLabel(realValue));
-                    }
+                    return this._toOptionLabel(realValue) || '';
+                }
+                if(this.modelExtractKey && this._toOptionByExtractVal(realValue)) {
+                    return this._toOptionLabel(this._toOptionByExtractVal(realValue));
+                }
+                if(this._toOptionById(realValue)) {
+                    return this._toOptionLabel(this._toOptionById(realValue));
+                }
+                if(this._toOptionByLabel(realValue)) {
+                    return this._toOptionLabel(this._toOptionByLabel(realValue));
                 }
                 return realValue;
             },
@@ -782,6 +782,14 @@
             focus() {
                 this.$refs.input.focus();
             },
+            onFocus() {
+                this.inputFocused = true;
+                this.$emit('focus');
+            },
+            onBlur() {
+                this.inputFocused = false;
+                this.$emit('blur');
+            },
             showOptionPicker(isCheckEditable) {
                 if(! this.isOptional) {
                     return;
@@ -792,7 +800,9 @@
                 if(this.readonly || this.disabled) {
                     return;
                 }
-                this.$refs.input.focus();
+                if(this.$refs.input) {
+                    this.$refs.input.focus();
+                }
                 this.isPicking = true;
             },
             refreshOption() {
@@ -937,6 +947,9 @@
                 this.optionSummaryCount = result;
             },
             hideOptionPicker() {
+                if(this.$refs.input) {
+                    this.$refs.input.blur();
+                }
                 this.isPicking = false;
             },
         },

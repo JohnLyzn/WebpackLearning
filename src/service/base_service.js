@@ -414,7 +414,7 @@ export default class BaseService {
 	 * @param {*} placeholders 
 	 */
 	putObjInCacheMap(obj, objType, placeholders) {
-		let cacheObj = new (objType)(obj, Utils.isString(obj.id) ? true : false, placeholders);
+		let cacheObj = new (objType)(obj, Utils.isInstance(obj, objType), placeholders);
 		if(! Utils.isString(cacheObj.id)) {
 			throw new Error('请保证模型的id为字符串类型');
 		}
@@ -486,7 +486,11 @@ export default class BaseService {
 	};
 
 	/**
-	 * 处理删除后删除指定ID(单个或集合)的缓存对象
+	 * 私有: 处理删除后删除指定ID(单个或集合)的缓存对象
+	 * @param {*} params 传入的参数
+	 * @param {*} callbacks 传入的回调
+	 * @param {*} placeholders 占位参数
+	 * @param {*} json 远程请求结果
 	 */
 	_handleDeleteCache(params, callbacks, placeholders, json) {
 		let handleDeleteCachePlaceholdersFn = placeholders['handleDeleteCachePlaceholdersFn'];
@@ -555,7 +559,11 @@ export default class BaseService {
 	}
 
 	/**
-	 * 处理创建/更新后获取指定ID(单个或集合)的新对象缓存
+	 * 私有: 处理创建/更新后获取指定ID(单个或集合)的新对象缓存
+	 * @param {*} params 传入的参数
+	 * @param {*} callbacks 传入的回调
+	 * @param {*} placeholders 占位参数
+	 * @param {*} json 远程请求结果
 	 */
 	async _handleDetailsFetch(params, callbacks, placeholders, json) {
 		let handleDetailsFetchPlaceholdersFn = placeholders['handleDetailsFetchPlaceholdersFn'];
@@ -598,6 +606,19 @@ export default class BaseService {
 				}
 			},
 		}, queryPlaceholders);
+	};
+
+	/**
+	 * 私有: 获取未远程获取的对象并添加到缓存中
+	 * @param {String} objId 任意指定的对象ID
+	 * @param {Any Model Type} objType 缓存模型类型
+	 */
+	_generateUnfetchObjAndCache(objId, objType, placeholders) {
+		const obj = new objType({
+			id: objId,
+			name:'#未获取#'
+		}, true);
+		return this.putObjInCacheMap(obj, objType, placeholders);
 	};
 };
 
@@ -733,7 +754,7 @@ const _ajaxTemplate = async (params, callbacks, placeholders, task) => {
 	let ajaxSuccessFn = placeholders['_ajaxSuccessFn'];
 	let handleResult;
 	if(Utils.isFunc(ajaxSuccessFn)) {
-		handleResult = (json && await ajaxSuccessFn(json)) || false;
+		handleResult = json ? await ajaxSuccessFn(json) : false;
 		if(handleResult === false) { /* 返回false表示失败 */
 			// 通用错误识别和接口错误识别, 返回true说明被处理了
 			if(Utils.isFunc(callbacks.onFail) && ! callbacks.onFail.default) {
@@ -797,19 +818,6 @@ const _getDefailtModel = (tag) => {
 const _getObjType = (placeholders) => {
 	return placeholders['objType'] || _getDefailtModel(
 		placeholders['tag'] || placeholders['errorTag']);
-};
-
-/**
- * 私有: 获取未远程获取的对象并添加到缓存中
- * @param {String} objId 任意指定的对象ID
- * @param {Any Model Type} objType 缓存模型类型
- */
-const _generateUnfetchObjAndCache = (objId, objType, placeholders) => {
-	const obj = new objType({
-		id: objId,
-		name:'#未获取#'
-	}, true);
-	return this.putObjInCacheMap(obj, objType, placeholders);
 };
 
 /**

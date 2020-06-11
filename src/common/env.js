@@ -419,7 +419,7 @@ const genterateDefaultQrCodeDom = () => {
 	closeBtnDom.setAttributeNode(classAttr3);
 	qrCodeDom.appendChild(closeBtnDom);
 	// 关闭事件
-	containerDom.addEventListener('click', () => {
+	closeBtnDom.addEventListener('click', () => {
 		containerDom.style.display = 'none';
 	});
 	// 追加到body下
@@ -430,30 +430,65 @@ const genterateDefaultQrCodeDom = () => {
 /**
  * 生成微信分享请求URL
  */
-const generateShareWxUrl = (params) => {
+const generateWxShareUrl = (params) => {
 	if(! window.g_wxUrl) {
 		return 'https://wx.wetoband.com/gotoShare?' + Utils.toQueryStr(params);
 	}
 	return window.g_wxUrl + '/gotoShare?' + Utils.toQueryStr(params);
 };
 
+const generateWebShareForwardUrl = (uuid) => {
+	if(! window.g_webUrl) {
+		return 'https://www.wetoband.com/web/qrCode/shareForward/' + uuid; 
+	}
+	return window.g_webUrl + '/qrCode/shareForward/' + uuid;
+};
+
+const submitWebShareForwardData = (uuid, data) => {
+	return baseService.createTemplate(null, null, {
+		url: generateWebShareForwardUrl(uuid),
+		ajaxParams: {
+			shareData: JSON.stringify(data),
+		},
+		singleResult: true,
+		errorTag: 'submitWebShareForwardData',
+		errorMsg: '分享失败',
+	});
+};
+
 /**
  * 处理分享到微信
  */
-export const shareToWx = (config) => {
+export const shareToWx = async (config) => {
 	if(isCurrentClient('pc') || config.forceQrCode) { /* PC */
 		if(! config.dom) {
 			config.dom = genterateDefaultQrCodeDom();
 		}
 		const QRCode = require('qrcodejs2');
 		const base64 = new (require('plugin/Base64').default)();
-		new QRCode(config.dom, {
-			text: generateShareWxUrl({
+		let wxUrl = generateWxShareUrl({
+			shareType: 'href',
+			url: encodeURIComponent(base64.encode(config.url)),
+			title: encodeURIComponent(base64.encode(config.title)),
+			desc: encodeURIComponent(base64.encode(config.content)),
+		});
+		if(wxUrl.length > 50) {
+			const uuid = Utils.generateTemporyId();
+			const result = await submitWebShareForwardData(uuid, {
+				url: config.url,
+				title: config.title,
+				desc: config.content,
+			});
+			if(! result) {
+				return;
+			}
+			wxUrl = generateWxShareUrl({
 				shareType: 'href',
-				url: encodeURIComponent(base64.encode(config.url)),
-				title: encodeURIComponent(base64.encode(config.title)),
-				desc: encodeURIComponent(base64.encode(config.content)),
-			}),
+				exchange: uuid,
+			});
+		}
+		new QRCode(config.dom, {
+			text: wxUrl,
 			width: config.width || 320,
 			height: config.height || 320,
 			colorDark: config.color || '#333333', //二维码颜色
@@ -471,7 +506,7 @@ export const shareToWx = (config) => {
 		return;
 	}
 	/* wx */
-	window.open(generateShareWxUrl({
+	window.open(generateWxShareUrl({
 		shareType: 'href',
 		url: encodeURIComponent(config.url),
 		title: config.title,

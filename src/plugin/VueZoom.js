@@ -69,7 +69,7 @@ const _init = (el, setting) => {
             return;
         }
         const nowDistance = _distance(e.touches[0], e.touches[1]);
-        const radio = nowDistance / el._VUEZOOM.startDistance;
+        const radio = nowDistance / el._VUEZOOM.startDistance / 10;
         _zoom(el, radio, true);
         _keepScrollorCenter(el);
     });
